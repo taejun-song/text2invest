@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://text2invest.local/schemas/provider-meta.json",
+  "title": "ProviderMeta",
+  "description": "LLM provider information",
+  "type": "object",
+  "required": ["provider", "model", "temperature", "pipeline_duration_ms"],
+  "properties": {
+    "provider": {
+      "type": "string",
+      "enum": ["openai", "anthropic", "ollama"],
+      "description": "LLM provider name"
+    },
+    "model": {
+      "type": "string",
+      "description": "Model identifier"
+    },
+    "temperature": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2,
+      "description": "Generation temperature"
+    },
+    "pipeline_duration_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total processing time in milliseconds"
+    }
+  },
+  "additionalProperties": false
+}

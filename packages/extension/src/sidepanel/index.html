@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Text2Invest Report</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: #f9fafb;
+        color: #1a1a1a;
+        line-height: 1.5;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      h1 {
+        font-size: 20px;
+        font-weight: 600;
+      }
+      .tabs {
+        display: flex;
+        gap: 8px;
+      }
+      .tab {
+        padding: 6px 12px;
+        border: none;
+        background: transparent;
+        font-size: 14px;
+        cursor: pointer;
+        border-radius: 6px;
+        color: #6b7280;
+      }
+      .tab.active {
+        background: #2563eb;
+        color: #fff;
+      }
+      .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6b7280;
+      }
+      .empty-state h2 {
+        font-size: 18px;
+        margin-bottom: 8px;
+        color: #374151;
+      }
+      .report {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+      .report-header {
+        padding: 20px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .report-title {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      .report-meta {
+        font-size: 13px;
+        color: #6b7280;
+      }
+      .report-meta a {
+        color: #2563eb;
+        text-decoration: none;
+      }
+      .section {
+        padding: 16px 20px;
+        border-bottom: 1px solid #f3f4f6;
+      }
+      .section:last-child {
+        border-bottom: none;
+      }
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+      }
+      .section-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #374151;
+      }
+      .section-toggle {
+        font-size: 18px;
+        color: #9ca3af;
+        transition: transform 0.2s;
+      }
+      .section.collapsed .section-toggle {
+        transform: rotate(-90deg);
+      }
+      .section-content {
+        margin-top: 12px;
+        font-size: 14px;
+      }
+      .section.collapsed .section-content {
+        display: none;
+      }
+      .tickers {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .ticker {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: #eff6ff;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .ticker-symbol {
+        color: #2563eb;
+      }
+      .ticker-confidence {
+        font-size: 11px;
+        color: #6b7280;
+      }
+      .thesis {
+        font-size: 15px;
+        line-height: 1.6;
+      }
+      .quote {
+        background: #fefce8;
+        border-left: 3px solid #facc15;
+        padding: 12px 16px;
+        margin: 8px 0;
+        font-style: italic;
+        font-size: 13px;
+      }
+      .list {
+        list-style: none;
+      }
+      .list li {
+        position: relative;
+        padding-left: 20px;
+        margin-bottom: 8px;
+      }
+      .list li::before {
+        content: '•';
+        position: absolute;
+        left: 0;
+        color: #9ca3af;
+      }
+      .list.risks li::before {
+        content: '⚠';
+        color: #f59e0b;
+      }
+      .counter-thesis {
+        background: #fef2f2;
+        border-radius: 8px;
+        padding: 12px 16px;
+        font-size: 14px;
+        color: #991b1b;
+      }
+      .confidence-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .confidence-track {
+        flex: 1;
+        height: 8px;
+        background: #e5e7eb;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      .confidence-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #dc2626, #f59e0b, #16a34a);
+        border-radius: 4px;
+      }
+      .confidence-score {
+        font-size: 18px;
+        font-weight: 600;
+        min-width: 50px;
+        text-align: right;
+      }
+      .confidence-explanation {
+        font-size: 13px;
+        color: #6b7280;
+      }
+      .horizon {
+        display: inline-block;
+        padding: 4px 12px;
+        background: #f3f4f6;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 500;
+        text-transform: capitalize;
+      }
+      .provider-meta {
+        font-size: 12px;
+        color: #9ca3af;
+      }
+      .disclaimer {
+        background: #fef3c7;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin: 20px 0;
+        font-size: 13px;
+        color: #92400e;
+        text-align: center;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        padding: 16px 20px;
+        border-top: 1px solid #e5e7eb;
+      }
+      .btn {
+        flex: 1;
+        padding: 10px 16px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .btn-primary {
+        background: #2563eb;
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: #1d4ed8;
+      }
+      .btn-secondary {
+        background: #f3f4f6;
+        color: #374151;
+      }
+      .btn-secondary:hover {
+        background: #e5e7eb;
+      }
+      .rating {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .rating-btn {
+        padding: 8px 16px;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.15s;
+      }
+      .rating-btn:hover {
+        background: #f3f4f6;
+      }
+      .rating-btn.selected.useful {
+        background: #dcfce7;
+        border-color: #16a34a;
+        color: #166534;
+      }
+      .rating-btn.selected.not-useful {
+        background: #fee2e2;
+        border-color: #dc2626;
+        color: #991b1b;
+      }
+      .history-item {
+        padding: 16px 20px;
+        border-bottom: 1px solid #f3f4f6;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .history-item:hover {
+        background: #f9fafb;
+      }
+      .history-item-title {
+        font-size: 14px;
+        font-weight: 500;
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .history-item-meta {
+        font-size: 12px;
+        color: #6b7280;
+      }
+      .hidden {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Text2Invest</h1>
+        <div class="tabs">
+          <button id="tab-report" class="tab active">Report</button>
+          <button id="tab-history" class="tab">History</button>
+        </div>
+      </header>
+      <main id="content">
+        <div id="empty-state" class="empty-state">
+          <h2>No Report Yet</h2>
+          <p>Select text on a webpage and click "Generate Idea" to create your first investment report.</p>
+        </div>
+        <div id="report-view" class="report hidden"></div>
+        <div id="history-view" class="hidden"></div>
+      </main>
+    </div>
+    <script src="panel.js" type="module"></script>
+  </body>
+</html>

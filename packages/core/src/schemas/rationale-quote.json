@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://text2invest.local/schemas/rationale-quote.json",
+  "title": "RationaleQuote",
+  "description": "Text excerpt supporting the thesis with character offsets",
+  "type": "object",
+  "required": ["quote", "start_offset", "end_offset"],
+  "properties": {
+    "quote": {
+      "type": "string",
+      "description": "Exact text from selection"
+    },
+    "start_offset": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Character offset from start of selection"
+    },
+    "end_offset": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Character offset to end of quote"
+    }
+  },
+  "additionalProperties": false
+}

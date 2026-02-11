@@ -1,0 +1,26 @@
+{
+  "name": "text2invest-extension",
+  "version": "0.1.0",
+  "description": "Chrome extension for Text2Invest - convert selected text to investment ideas",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "tsc && vite build",
+    "lint": "eslint src --ext .ts,.tsx",
+    "format": "prettier --write src/**/*.{ts,tsx,html,css}",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@anthropic-ai/eslint-config": "^1.0.0",
+    "@playwright/test": "^1.40.0",
+    "@types/chrome": "^0.0.268",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.2.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0"
+  }
+}

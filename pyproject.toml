@@ -1,7 +1,13 @@
 [project]
 name = "text2invest"
 version = "0.1.0"
-description = "Add your description here"
+description = "Convert selected text into structured investment ideas"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = []
+
+[tool.uv.workspace]
+members = ["packages/mcp-server"]
+
+[tool.uv.sources]
+text2invest-mcp-server = { workspace = true }
