@@ -78,9 +78,21 @@ class OptionsController {
     const provider = this.providerSelect.value as UserSettings['provider'] | '';
     const isCloud = provider === 'openai' || provider === 'anthropic';
     const isOllama = provider === 'ollama';
+    const needsBaseUrl = provider === 'openai' || provider === 'ollama';
 
     this.apiKeyGroup.classList.toggle('visible', isCloud);
-    this.baseUrlGroup.classList.toggle('visible', isOllama);
+    this.baseUrlGroup.classList.toggle('visible', needsBaseUrl);
+
+    const baseUrlHint = document.getElementById('base-url-hint');
+    if (baseUrlHint) {
+      if (isOllama) {
+        baseUrlHint.textContent = 'Required: URL where Ollama is running (e.g., http://localhost:11434)';
+        this.baseUrlInput.placeholder = 'http://localhost:11434';
+      } else if (provider === 'openai') {
+        baseUrlHint.textContent = 'Optional: Custom OpenAI-compatible endpoint. Leave empty for official OpenAI API.';
+        this.baseUrlInput.placeholder = 'https://api.openai.com/v1';
+      }
+    }
 
     if (provider && MODEL_HINTS[provider]) {
       this.modelHint.textContent = MODEL_HINTS[provider];
@@ -97,10 +109,15 @@ class OptionsController {
     if (!provider) {
       return 'Please select a provider';
     }
-    if ((provider === 'openai' || provider === 'anthropic') && !this.apiKeyInput.value.trim()) {
-      return 'API key is required for cloud providers';
+    const hasApiKey = this.apiKeyInput.value.trim();
+    const hasBaseUrl = this.baseUrlInput.value.trim();
+    if (provider === 'openai' && !hasApiKey && !hasBaseUrl) {
+      return 'API key or custom base URL is required for OpenAI';
     }
-    if (provider === 'ollama' && !this.baseUrlInput.value.trim()) {
+    if (provider === 'anthropic' && !hasApiKey) {
+      return 'API key is required for Anthropic';
+    }
+    if (provider === 'ollama' && !hasBaseUrl) {
       return 'Base URL is required for Ollama';
     }
     if (!this.modelInput.value.trim()) {
@@ -123,10 +140,13 @@ class OptionsController {
       web_lookup: false,
     };
     if (settings.provider === 'openai' || settings.provider === 'anthropic') {
-      settings.api_key = this.apiKeyInput.value.trim();
+      settings.api_key = this.apiKeyInput.value.trim() || undefined;
     }
-    if (settings.provider === 'ollama') {
-      settings.base_url = this.baseUrlInput.value.trim();
+    if (settings.provider === 'openai' || settings.provider === 'ollama') {
+      const baseUrl = this.baseUrlInput.value.trim();
+      if (baseUrl) {
+        settings.base_url = baseUrl;
+      }
     }
     await saveSettings(settings);
     this.showToast('Settings saved successfully');

@@ -248,12 +248,12 @@
           <div id="api-key-group" class="form-group conditional">
             <label for="api-key">API Key</label>
             <input type="password" id="api-key" name="api_key" placeholder="sk-..." autocomplete="off" />
-            <p class="helper-text">Your API key is stored locally and never sent anywhere except to the provider.</p>
+            <p class="helper-text">Your API key is stored locally. Optional for custom endpoints.</p>
           </div>
           <div id="base-url-group" class="form-group conditional">
-            <label for="base-url">Ollama Base URL</label>
-            <input type="url" id="base-url" name="base_url" value="http://localhost:11434" />
-            <p class="helper-text">The URL where your Ollama server is running.</p>
+            <label for="base-url">Base URL</label>
+            <input type="url" id="base-url" name="base_url" placeholder="https://api.openai.com/v1" />
+            <p id="base-url-hint" class="helper-text">Custom API endpoint (optional for OpenAI/Anthropic, required for Ollama).</p>
           </div>
           <div class="form-group">
             <label for="model">Model</label>

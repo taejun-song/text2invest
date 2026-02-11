@@ -554,6 +554,22 @@ lua = [
 ]
 
 [[package]]
+name = "fastapi"
+version = "0.128.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "annotated-doc" },
+    { name = "pydantic" },
+    { name = "starlette" },
+    { name = "typing-extensions" },
+    { name = "typing-inspection" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a0/fc/af386750b3fd8d8828167e4c82b787a8eeca2eca5c5429c9db8bb7c70e04/fastapi-0.128.7.tar.gz", hash = "sha256:783c273416995486c155ad2c0e2b45905dedfaf20b9ef8d9f6a9124670639a24", size = 375325 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/af/1a/f983b45661c79c31be575c570d46c437a5409b67a939c1b3d8d6b3ed7a7f/fastapi-0.128.7-py3-none-any.whl", hash = "sha256:6bd9bd31cb7047465f2d3fa3ba3f33b0870b17d4eaf7cdb36d1576ab060ad662", size = 103630 },
+]
+
+[[package]]
 name = "fastmcp"
 version = "2.14.5"
 source = { registry = "https://pypi.org/simple" }
@@ -2112,6 +2128,7 @@ name = "text2invest-mcp-server"
 version = "0.1.0"
 source = { editable = "packages/mcp-server" }
 dependencies = [
+    { name = "fastapi" },
     { name = "fastmcp" },
     { name = "litellm" },
     { name = "pydantic" },
@@ -2130,6 +2147,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "black", marker = "extra == 'dev'", specifier = ">=24.0.0" },
+    { name = "fastapi", specifier = ">=0.128.7" },
     { name = "fastmcp", specifier = ">=2.2.0" },
     { name = "litellm", specifier = ">=1.0.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
