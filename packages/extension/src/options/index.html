@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Text2Invest Settings</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: #f9fafb;
+        color: #1a1a1a;
+        line-height: 1.5;
+        padding: 40px 20px;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 24px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      .subtitle {
+        color: #6b7280;
+        margin-bottom: 32px;
+      }
+      .card {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        padding: 24px;
+        margin-bottom: 24px;
+      }
+      .card-title {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #f3f4f6;
+      }
+      .form-group {
+        margin-bottom: 20px;
+      }
+      .form-group:last-child {
+        margin-bottom: 0;
+      }
+      label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        margin-bottom: 6px;
+        color: #374151;
+      }
+      .helper-text {
+        font-size: 12px;
+        color: #6b7280;
+        margin-top: 4px;
+      }
+      input[type='text'],
+      input[type='password'],
+      input[type='url'],
+      select {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 14px;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+      input:focus,
+      select:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      }
+      input.error {
+        border-color: #dc2626;
+      }
+      .error-message {
+        font-size: 12px;
+        color: #dc2626;
+        margin-top: 4px;
+      }
+      .slider-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      input[type='range'] {
+        flex: 1;
+        height: 6px;
+        background: #e5e7eb;
+        border-radius: 3px;
+        -webkit-appearance: none;
+      }
+      input[type='range']::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 18px;
+        height: 18px;
+        background: #2563eb;
+        border-radius: 50%;
+        cursor: pointer;
+      }
+      .slider-value {
+        min-width: 40px;
+        text-align: center;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .toggle-group {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .toggle-label {
+        display: flex;
+        flex-direction: column;
+      }
+      .toggle-label span {
+        font-size: 14px;
+        font-weight: 500;
+        color: #374151;
+      }
+      .toggle-label small {
+        font-size: 12px;
+        color: #6b7280;
+      }
+      .toggle {
+        position: relative;
+        width: 44px;
+        height: 24px;
+      }
+      .toggle input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #d1d5db;
+        border-radius: 12px;
+        transition: background 0.2s;
+      }
+      .toggle-slider::before {
+        content: '';
+        position: absolute;
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background: #fff;
+        border-radius: 50%;
+        transition: transform 0.2s;
+      }
+      .toggle input:checked + .toggle-slider {
+        background: #2563eb;
+      }
+      .toggle input:checked + .toggle-slider::before {
+        transform: translateX(20px);
+      }
+      .actions {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+      }
+      button {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .btn-primary {
+        background: #2563eb;
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: #1d4ed8;
+      }
+      .btn-primary:disabled {
+        background: #93c5fd;
+        cursor: not-allowed;
+      }
+      .btn-secondary {
+        background: #f3f4f6;
+        color: #374151;
+      }
+      .btn-secondary:hover {
+        background: #e5e7eb;
+      }
+      .toast {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        background: #166534;
+        color: #fff;
+        border-radius: 8px;
+        font-size: 14px;
+        opacity: 0;
+        transform: translateY(10px);
+        transition: opacity 0.2s, transform 0.2s;
+      }
+      .toast.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .toast.error {
+        background: #dc2626;
+      }
+      .conditional {
+        display: none;
+      }
+      .conditional.visible {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Text2Invest Settings</h1>
+      <p class="subtitle">Configure your LLM provider and preferences</p>
+      <form id="settings-form">
+        <div class="card">
+          <h2 class="card-title">LLM Provider</h2>
+          <div class="form-group">
+            <label for="provider">Provider</label>
+            <select id="provider" name="provider">
+              <option value="">Select a provider...</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="ollama">Ollama (Local)</option>
+            </select>
+          </div>
+          <div id="api-key-group" class="form-group conditional">
+            <label for="api-key">API Key</label>
+            <input type="password" id="api-key" name="api_key" placeholder="sk-..." autocomplete="off" />
+            <p class="helper-text">Your API key is stored locally and never sent anywhere except to the provider.</p>
+          </div>
+          <div id="base-url-group" class="form-group conditional">
+            <label for="base-url">Ollama Base URL</label>
+            <input type="url" id="base-url" name="base_url" value="http://localhost:11434" />
+            <p class="helper-text">The URL where your Ollama server is running.</p>
+          </div>
+          <div class="form-group">
+            <label for="model">Model</label>
+            <input type="text" id="model" name="model" placeholder="e.g., gpt-4o, claude-3-5-sonnet, llama3" />
+            <p class="helper-text" id="model-hint"></p>
+          </div>
+        </div>
+        <div class="card">
+          <h2 class="card-title">Generation Settings</h2>
+          <div class="form-group">
+            <label for="temperature">Temperature</label>
+            <div class="slider-group">
+              <input type="range" id="temperature" name="temperature" min="0" max="2" step="0.1" value="0.7" />
+              <span id="temperature-value" class="slider-value">0.7</span>
+            </div>
+            <p class="helper-text">Lower values = more focused, higher values = more creative.</p>
+          </div>
+        </div>
+        <div class="card">
+          <h2 class="card-title">Privacy</h2>
+          <div class="form-group toggle-group">
+            <div class="toggle-label">
+              <span>PII Redaction</span>
+              <small>Automatically redact emails, phone numbers, and SSNs from selected text</small>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="pii-redaction" name="pii_redaction" checked />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="actions">
+          <button type="button" id="reset-btn" class="btn-secondary">Reset to Defaults</button>
+          <button type="submit" id="save-btn" class="btn-primary">Save Settings</button>
+        </div>
+      </form>
+    </div>
+    <div id="toast" class="toast"></div>
+    <script src="options.js" type="module"></script>
+  </body>
+</html>

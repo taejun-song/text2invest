@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://text2invest.local/schemas/user-settings.json",
+  "title": "UserSettings",
+  "description": "User configuration stored in chrome.storage.local",
+  "type": "object",
+  "required": ["provider", "model"],
+  "properties": {
+    "provider": {
+      "type": "string",
+      "enum": ["openai", "anthropic", "ollama"],
+      "description": "LLM provider"
+    },
+    "model": {
+      "type": "string",
+      "description": "Model identifier"
+    },
+    "api_key": {
+      "type": "string",
+      "description": "API key (required for cloud providers)"
+    },
+    "base_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Base URL (required for Ollama)"
+    },
+    "temperature": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 0.7,
+      "description": "Generation temperature"
+    },
+    "pii_redaction": {
+      "type": "boolean",
+      "default": true,
+      "description": "Redact emails and phone numbers"
+    },
+    "web_lookup": {
+      "type": "boolean",
+      "default": false,
+      "description": "Allow web searches (default OFF)"
+    }
+  },
+  "additionalProperties": false
+}

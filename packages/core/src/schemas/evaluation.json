@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://text2invest.local/schemas/evaluation.json",
+  "title": "Evaluation",
+  "description": "User feedback on a report",
+  "type": "object",
+  "required": ["idea_id", "rating", "created_at"],
+  "properties": {
+    "idea_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Reference to IdeaReport"
+    },
+    "rating": {
+      "type": "string",
+      "enum": ["useful", "not_useful"],
+      "description": "User rating"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional explanation"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Rating timestamp"
+    }
+  },
+  "additionalProperties": false
+}

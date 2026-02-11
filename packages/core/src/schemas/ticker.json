@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://text2invest.local/schemas/ticker.json",
+  "title": "Ticker",
+  "description": "Identified security with confidence score",
+  "type": "object",
+  "required": ["symbol", "company_name", "confidence"],
+  "properties": {
+    "symbol": {
+      "type": "string",
+      "pattern": "^[A-Z]{1,5}$",
+      "description": "Stock ticker symbol (e.g., AAPL)"
+    },
+    "company_name": {
+      "type": "string",
+      "description": "Full company name"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Mapping certainty (0.0 to 1.0)"
+    }
+  },
+  "additionalProperties": false
+}

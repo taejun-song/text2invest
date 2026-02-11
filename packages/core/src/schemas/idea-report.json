@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://text2invest.local/schemas/idea-report.json",
+  "title": "IdeaReport",
+  "description": "Structured investment hypothesis generated from selected text",
+  "type": "object",
+  "required": [
+    "id",
+    "created_at",
+    "source",
+    "selection_text",
+    "tickers",
+    "thesis",
+    "executive_summary",
+    "rationale_quotes",
+    "catalysts",
+    "risks",
+    "counter_thesis",
+    "horizon",
+    "confidence_score",
+    "confidence_explanation",
+    "limitations",
+    "provider_meta"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Creation timestamp (ISO 8601)"
+    },
+    "source": {
+      "$ref": "source.json",
+      "description": "Origin webpage information"
+    },
+    "selection_text": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 8000,
+      "description": "Original selected text"
+    },
+    "tickers": {
+      "type": "array",
+      "items": { "$ref": "ticker.json" },
+      "description": "Identified securities (may be empty)"
+    },
+    "thesis": {
+      "type": "string",
+      "description": "Investment thesis statement"
+    },
+    "executive_summary": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "maxItems": 3,
+      "description": "Max 3 bullet points summarizing the idea"
+    },
+    "rationale_quotes": {
+      "type": "array",
+      "items": { "$ref": "rationale-quote.json" },
+      "description": "Supporting text excerpts with offsets"
+    },
+    "catalysts": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Potential positive triggers"
+    },
+    "risks": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Identified risk factors"
+    },
+    "counter_thesis": {
+      "type": "string",
+      "description": "Opposing viewpoint"
+    },
+    "horizon": {
+      "type": "string",
+      "enum": ["short", "medium", "long"],
+      "description": "Time horizon for the investment thesis"
+    },
+    "confidence_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Overall confidence (0.0 to 1.0)"
+    },
+    "confidence_explanation": {
+      "type": "string",
+      "description": "Why this confidence level"
+    },
+    "limitations": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Known limitations of the analysis"
+    },
+    "provider_meta": {
+      "$ref": "provider-meta.json",
+      "description": "LLM provider information"
+    }
+  },
+  "additionalProperties": false
+}

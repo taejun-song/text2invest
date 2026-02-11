@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://text2invest.local/schemas/source.json",
+  "title": "Source",
+  "description": "Origin webpage metadata",
+  "type": "object",
+  "required": ["url", "title"],
+  "properties": {
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Page URL"
+    },
+    "title": {
+      "type": "string",
+      "description": "Page title"
+    }
+  },
+  "additionalProperties": false
+}
