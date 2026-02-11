@@ -1,4 +1,4 @@
-from ..models.agent_outputs import TickerOutput
+from models.agent_outputs import TickerOutput
 from .base import BaseAgent
 
 

@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import uuid4
 
-from ..models.idea_report import (
+from models.idea_report import (
     Horizon,
     IdeaReport,
     ProviderMeta,

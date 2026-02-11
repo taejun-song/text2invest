@@ -1,9 +1,13 @@
+import sys
 from datetime import datetime
+from pathlib import Path
 from uuid import UUID
+
+sys.path.insert(0, str(Path(__file__).parent))
 
 from fastmcp import FastMCP
 
-from .models import Evaluation, IdeaReport, IdeaRequest
+from models import Evaluation, IdeaReport, IdeaRequest
 
 mcp = FastMCP("Text2Invest MCP Server")
 
@@ -19,7 +23,7 @@ async def health() -> dict:
 
 @mcp.tool()
 async def generate_idea(request: IdeaRequest) -> IdeaReport:
-    from .tools.generate_idea import generate_idea_impl
+    from tools.generate_idea import generate_idea_impl
 
     return await generate_idea_impl(request, active_generations)
 

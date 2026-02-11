@@ -1,4 +1,4 @@
-from ..models.agent_outputs import ThesisOutput
+from models.agent_outputs import ThesisOutput
 from .base import BaseAgent
 
 

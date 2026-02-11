@@ -4,8 +4,8 @@ from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from ..models.idea_report import UserSettings
-from ..providers.llm import LLMProvider
+from models.idea_report import UserSettings
+from providers.llm import LLMProvider
 
 T = TypeVar("T", bound=BaseModel)
 

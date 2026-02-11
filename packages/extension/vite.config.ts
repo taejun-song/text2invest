@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import { copyFileSync, mkdirSync, existsSync } from 'fs';
 
 export default defineConfig({
   build: {
@@ -7,33 +8,40 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        popup: resolve(__dirname, 'src/popup/index.html'),
-        sidepanel: resolve(__dirname, 'src/sidepanel/index.html'),
-        options: resolve(__dirname, 'src/options/index.html'),
-        'service-worker': resolve(__dirname, 'src/background/service-worker.ts'),
-        selection: resolve(__dirname, 'src/content/selection.ts'),
+        'background/service-worker': resolve(__dirname, 'src/background/service-worker.ts'),
+        'content/selection': resolve(__dirname, 'src/content/selection.ts'),
+        'popup/popup': resolve(__dirname, 'src/popup/popup.ts'),
+        'sidepanel/panel': resolve(__dirname, 'src/sidepanel/panel.ts'),
+        'options/options': resolve(__dirname, 'src/options/options.ts'),
       },
       output: {
-        entryFileNames: (chunkInfo) => {
-          if (chunkInfo.name === 'service-worker') {
-            return 'background/[name].js';
-          }
-          if (chunkInfo.name === 'selection') {
-            return 'content/[name].js';
-          }
-          return '[name]/[name].js';
-        },
+        entryFileNames: '[name].js',
         chunkFileNames: 'chunks/[name]-[hash].js',
-        assetFileNames: (assetInfo) => {
-          if (assetInfo.name?.endsWith('.html')) {
-            return '[name][extname]';
-          }
-          return 'assets/[name]-[hash][extname]';
-        },
+        assetFileNames: 'assets/[name]-[hash][extname]',
       },
     },
     target: 'esnext',
     minify: false,
   },
-  publicDir: 'public',
+  plugins: [
+    {
+      name: 'copy-extension-files',
+      closeBundle() {
+        const distDir = resolve(__dirname, 'dist');
+        const srcDir = resolve(__dirname, 'src');
+        const publicDir = resolve(__dirname, 'public');
+        ['popup', 'sidepanel', 'options'].forEach((dir) => {
+          const outDir = resolve(distDir, dir);
+          if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
+          copyFileSync(resolve(srcDir, dir, 'index.html'), resolve(outDir, 'index.html'));
+        });
+        copyFileSync(resolve(publicDir, 'manifest.json'), resolve(distDir, 'manifest.json'));
+        const iconsDir = resolve(distDir, 'icons');
+        if (!existsSync(iconsDir)) mkdirSync(iconsDir, { recursive: true });
+        ['icon16.svg', 'icon48.svg', 'icon128.svg'].forEach((icon) => {
+          copyFileSync(resolve(publicDir, 'icons', icon), resolve(iconsDir, icon));
+        });
+      },
+    },
+  ],
 });
