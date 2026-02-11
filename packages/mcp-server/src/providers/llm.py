@@ -14,6 +14,8 @@ class LLMProvider:
 
     def _build_model_name(self) -> str:
         if self.settings.provider == Provider.OPENAI:
+            if self.settings.base_url:
+                return f"openai/{self.settings.model}"
             return self.settings.model
         elif self.settings.provider == Provider.ANTHROPIC:
             return f"anthropic/{self.settings.model}"
@@ -39,8 +41,11 @@ class LLMProvider:
             "temperature": self.settings.temperature,
         }
 
-        if self.settings.provider == Provider.OPENAI and self.settings.api_key:
-            kwargs["api_key"] = self.settings.api_key
+        if self.settings.provider == Provider.OPENAI:
+            if self.settings.api_key:
+                kwargs["api_key"] = self.settings.api_key
+            if self.settings.base_url:
+                kwargs["api_base"] = self.settings.base_url
         elif self.settings.provider == Provider.ANTHROPIC and self.settings.api_key:
             kwargs["api_key"] = self.settings.api_key
         elif self.settings.provider == Provider.OLLAMA and self.settings.base_url:
