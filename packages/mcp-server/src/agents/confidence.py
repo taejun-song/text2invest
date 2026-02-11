@@ -1,4 +1,4 @@
-from ..models.agent_outputs import ConfidenceOutput
+from models.agent_outputs import ConfidenceOutput
 from .base import BaseAgent
 
 

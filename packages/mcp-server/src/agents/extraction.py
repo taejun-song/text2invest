@@ -1,4 +1,4 @@
-from ..models.agent_outputs import ExtractionOutput
+from models.agent_outputs import ExtractionOutput
 from .base import BaseAgent
 
 

@@ -1,5 +1,5 @@
-from ..agents.pipeline import Pipeline
-from ..models.idea_report import IdeaReport, IdeaRequest
+from agents.pipeline import Pipeline
+from models.idea_report import IdeaReport, IdeaRequest
 
 
 async def generate_idea_impl(

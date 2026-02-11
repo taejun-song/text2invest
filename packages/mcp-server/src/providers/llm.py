@@ -4,7 +4,7 @@ from typing import Any
 from litellm import acompletion
 from pydantic import BaseModel
 
-from ..models.idea_report import Provider, UserSettings
+from models.idea_report import Provider, UserSettings
 
 
 class LLMProvider:

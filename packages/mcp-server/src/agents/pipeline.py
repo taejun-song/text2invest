@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from ..models.idea_report import IdeaReport, UserSettings
+from models.idea_report import IdeaReport, UserSettings
 from .confidence import ConfidenceAgent
 from .critique import CritiqueAgent
 from .entity import EntityAgent

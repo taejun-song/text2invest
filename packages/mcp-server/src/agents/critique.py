@@ -1,4 +1,4 @@
-from ..models.agent_outputs import CritiqueOutput
+from models.agent_outputs import CritiqueOutput
 from .base import BaseAgent
 
 
