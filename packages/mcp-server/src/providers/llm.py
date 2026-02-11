@@ -44,6 +44,8 @@ class LLMProvider:
         if self.settings.provider == Provider.OPENAI:
             if self.settings.api_key:
                 kwargs["api_key"] = self.settings.api_key
+            elif self.settings.base_url:
+                kwargs["api_key"] = "not-needed"
             if self.settings.base_url:
                 kwargs["api_base"] = self.settings.base_url
         elif self.settings.provider == Provider.ANTHROPIC and self.settings.api_key:
