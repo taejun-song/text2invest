@@ -242,10 +242,10 @@ class OptionsController {
   }
 
   private handleReset(): void {
-    this.providerSelect.value = '';
-    this.apiKeyInput.value = '';
-    this.baseUrlInput.value = 'http://localhost:11434';
-    this.modelInput.value = '';
+    this.providerSelect.value = import.meta.env.VITE_DEFAULT_PROVIDER || 'nrp';
+    this.apiKeyInput.value = import.meta.env.VITE_DEFAULT_API_KEY || '';
+    this.baseUrlInput.value = import.meta.env.VITE_DEFAULT_BASE_URL || 'https://ellm.nrp-nautilus.io/v1';
+    this.modelInput.value = import.meta.env.VITE_DEFAULT_MODEL || 'qwen3';
     this.temperatureInput.value = '0.7';
     this.temperatureValue.textContent = '0.7';
     this.piiRedactionInput.checked = true;
