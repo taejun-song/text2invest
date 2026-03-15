@@ -3,6 +3,7 @@
 Auto-generated from all feature plans. Last updated: 2026-02-11
 
 ## Active Technologies
+- Python 3.13 (MCP server), TypeScript (Chrome Extension) + FastMCP 2.x, LiteLLM, Pydantic 2.x, duckduckgo-search (server); Chrome Extension APIs (client) (002-multi-agent-data)
 
 - **Python 3.13**: MCP server (FastMCP 2.x, LiteLLM, Pydantic 2.x)
 - **TypeScript**: Chrome Extension (MV3)
@@ -43,6 +44,7 @@ npm run build  # Production build
 - **TypeScript**: ESLint + Prettier
 
 ## Recent Changes
+- 002-multi-agent-data: Added Python 3.13 (MCP server), TypeScript (Chrome Extension) + FastMCP 2.x, LiteLLM, Pydantic 2.x, duckduckgo-search (server); Chrome Extension APIs (client)
 
 - 001-text2invest-mcp-extension: Initial implementation
 

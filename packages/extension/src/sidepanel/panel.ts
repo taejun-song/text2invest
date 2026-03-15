@@ -1,5 +1,6 @@
-import type { Evaluation, GenerationState, IdeaReport } from '../types';
+import type { Evaluation, GenerationState, IdeaReport, NewsItem, FundamentalsSnapshot, AgentMessage } from '../types';
 import { getReports, getEvaluations, searchReports, saveEvaluation } from '../lib/storage';
+import { generateMarkdown, generateJSON, downloadFile } from '../lib/export';
 
 class PanelController {
   private contentEl: HTMLElement;
@@ -134,6 +135,11 @@ class PanelController {
       ${this.renderSection('Confidence', this.renderConfidence(report))}
       ${this.renderSection('Time Horizon', `<span class="horizon">${report.horizon}</span>`)}
       ${this.renderSection('Limitations', this.renderList(report.limitations))}
+      ${report.news_context?.length ? this.renderSection('News Context', this.renderNewsContext(report.news_context, report.agent_attributions), false) : ''}
+      ${report.fundamentals_summary?.length ? this.renderSection('Fundamentals', this.renderFundamentals(report.fundamentals_summary, report.agent_attributions), false) : ''}
+      ${report.cross_reference_analysis ? this.renderSection('Cross-Reference Analysis', this.renderCrossReference(report.cross_reference_analysis), false) : ''}
+      ${report.macro_context ? this.renderSection('Macro Context', this.renderMacroContext(report.macro_context), false) : ''}
+      ${report.communication_log?.messages?.length ? this.renderSection('Agent Log', this.renderCommunicationLog(report.communication_log.messages), true) : ''}
       ${this.renderSection('Provider Info', this.renderProviderMeta(report.provider_meta), true)}
       <div class="section">
         <div class="section-title">Was this helpful?</div>
@@ -247,80 +253,147 @@ class PanelController {
     `;
   }
 
+  private renderDataSourceBadge(source: string): string {
+    const label = source === 'web_search' ? 'Web Search' : 'LLM Knowledge';
+    const cls = source === 'web_search' ? 'badge-web' : 'badge-llm';
+    return `<span class="data-source-badge ${cls}">${label}</span>`;
+  }
+
+  private renderAgentLabel(sectionName: string, attributions?: Record<string, string[]> | null): string {
+    if (!attributions) return '';
+    const agents = attributions[sectionName];
+    if (!agents?.length) return '';
+    const labels: Record<string, string> = {
+      news_agent: 'News Agent', fundamentals_agent: 'Fundamentals Agent',
+      risk_agent: 'Risk Agent', macro_agent: 'Macro Agent', synthesis_agent: 'Synthesis Agent',
+    };
+    return `<div class="agent-attribution">${agents.map((a) => labels[a] || a).join(', ')}</div>`;
+  }
+
+  private renderSentimentBadge(sentiment: string): string {
+    const cls = sentiment === 'positive' ? 'sentiment-positive' : sentiment === 'negative' ? 'sentiment-negative' : 'sentiment-neutral';
+    return `<span class="sentiment-badge ${cls}">${sentiment}</span>`;
+  }
+
+  private renderNewsContext(items: NewsItem[], attributions?: Record<string, string[]> | null): string {
+    return `
+      ${this.renderAgentLabel('news_context', attributions)}
+      ${items.map((item) => `
+        <div class="news-item">
+          <div class="news-headline">
+            <a href="${this.escapeHtml(item.url)}" target="_blank">${this.escapeHtml(item.headline)}</a>
+            ${this.renderSentimentBadge(item.sentiment)}
+          </div>
+          <div class="news-meta">
+            ${this.escapeHtml(item.source)} • ${this.escapeHtml(item.published_date)}
+            • Relevance: ${Math.round(item.relevance_score * 100)}%
+            ${this.renderDataSourceBadge(item.data_source)}
+          </div>
+          <div class="news-summary">${this.escapeHtml(item.summary)}</div>
+        </div>
+      `).join('')}
+    `;
+  }
+
+  private renderFundamentals(snapshots: FundamentalsSnapshot[], attributions?: Record<string, string[]> | null): string {
+    return `
+      ${this.renderAgentLabel('fundamentals_summary', attributions)}
+      ${snapshots.map((snap) => `
+        <div class="fundamentals-card">
+          <div class="fundamentals-header">
+            <strong>${this.escapeHtml(snap.ticker)}</strong> - ${this.escapeHtml(snap.company_name)}
+            ${this.renderDataSourceBadge(snap.data_source)}
+          </div>
+          <table class="metrics-table">
+            <thead><tr><th>Metric</th><th>Value</th><th>Period</th></tr></thead>
+            <tbody>
+              ${snap.metrics.map((m) => `
+                <tr>
+                  <td>${this.escapeHtml(m.name)}</td>
+                  <td>${this.escapeHtml(m.value)}</td>
+                  <td>${m.period ? this.escapeHtml(m.period) : '-'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `).join('')}
+    `;
+  }
+
+  private renderCrossReference(analysis: IdeaReport['cross_reference_analysis']): string {
+    if (!analysis) return '';
+    return `
+      ${analysis.convergences.length ? `
+        <div class="xref-section">
+          <strong>Convergences</strong>
+          <ul class="list">${analysis.convergences.map((c) => `<li>${this.escapeHtml(c)}</li>`).join('')}</ul>
+        </div>
+      ` : ''}
+      ${analysis.divergences.length ? `
+        <div class="xref-section">
+          <strong>Divergences</strong>
+          ${analysis.divergences.map((d) => `
+            <div class="divergence-card">
+              <div class="divergence-topic">${this.escapeHtml(d.topic)}</div>
+              <div class="divergence-findings">
+                <div><strong>${this.escapeHtml(d.source_a)}:</strong> ${this.escapeHtml(d.finding_a)}</div>
+                <div><strong>${this.escapeHtml(d.source_b)}:</strong> ${this.escapeHtml(d.finding_b)}</div>
+              </div>
+              <div class="divergence-explanation">${this.escapeHtml(d.explanation)}</div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+      ${analysis.deduplicated_risks.length ? `
+        <div class="xref-section">
+          <strong>Deduplicated Risks</strong>
+          <ul class="list risks">${analysis.deduplicated_risks.map((r) => `<li>${this.escapeHtml(r)}</li>`).join('')}</ul>
+        </div>
+      ` : ''}
+    `;
+  }
+
+  private renderMacroContext(macro: IdeaReport['macro_context']): string {
+    if (!macro) return '';
+    return `
+      <div class="macro-section">
+        <div><strong>Sector:</strong> ${this.escapeHtml(macro.sector)} ${this.renderDataSourceBadge(macro.data_source)}</div>
+        ${macro.sector_trends.length ? `<div><strong>Trends:</strong><ul class="list">${macro.sector_trends.map((t) => `<li>${this.escapeHtml(t)}</li>`).join('')}</ul></div>` : ''}
+        ${macro.economic_indicators.length ? `<div><strong>Indicators:</strong><ul class="list">${macro.economic_indicators.map((i) => `<li>${this.escapeHtml(i)}</li>`).join('')}</ul></div>` : ''}
+        ${macro.headwinds.length ? `<div><strong>Headwinds:</strong><ul class="list risks">${macro.headwinds.map((h) => `<li>${this.escapeHtml(h)}</li>`).join('')}</ul></div>` : ''}
+        ${macro.tailwinds.length ? `<div><strong>Tailwinds:</strong><ul class="list">${macro.tailwinds.map((t) => `<li>${this.escapeHtml(t)}</li>`).join('')}</ul></div>` : ''}
+      </div>
+    `;
+  }
+
+  private renderCommunicationLog(messages: AgentMessage[]): string {
+    return `
+      <div class="comm-log">
+        ${messages.map((m) => `
+          <div class="log-entry">
+            <div class="log-meta">
+              <strong>${this.escapeHtml(m.sender)}</strong> → ${this.escapeHtml(m.recipient)}
+              <span class="log-type">${m.message_type}</span>
+              <span class="log-round">R${m.round_number}</span>
+            </div>
+            <div class="log-content">${this.escapeHtml(JSON.stringify(m.content).slice(0, 200))}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
   private exportMarkdown(report: IdeaReport): void {
-    const md = this.generateMarkdown(report);
-    this.downloadFile(`${report.tickers[0]?.symbol || 'report'}-${report.id.slice(0, 8)}.md`, md, 'text/markdown');
+    const md = generateMarkdown(report);
+    const filename = `${report.tickers[0]?.symbol || 'report'}-${report.id.slice(0, 8)}.md`;
+    downloadFile(filename, md, 'text/markdown');
   }
 
   private exportJSON(report: IdeaReport): void {
-    const json = JSON.stringify(report, null, 2);
-    this.downloadFile(`${report.tickers[0]?.symbol || 'report'}-${report.id.slice(0, 8)}.json`, json, 'application/json');
-  }
-
-  private generateMarkdown(report: IdeaReport): string {
-    return `# Investment Analysis: ${report.source.title || 'Untitled'}
-
-> ⚠️ **Disclaimer**: Educational only - Not financial advice
-
-**Source**: [${report.source.url}](${report.source.url})
-**Generated**: ${this.formatDate(report.created_at)}
-
-## Executive Summary
-
-${report.executive_summary.map((s) => `- ${s}`).join('\n')}
-
-## Tickers
-
-${report.tickers.map((t) => `- **${t.symbol}** (${t.company_name}) - Confidence: ${Math.round(t.confidence * 100)}%`).join('\n') || 'No tickers identified'}
-
-## Investment Thesis
-
-${report.thesis}
-
-## Supporting Quotes
-
-${report.rationale_quotes.map((q) => `> "${q.quote}"`).join('\n\n') || 'No supporting quotes'}
-
-## Catalysts
-
-${report.catalysts.map((c) => `- ${c}`).join('\n') || 'None identified'}
-
-## Risks
-
-${report.risks.map((r) => `- ⚠️ ${r}`).join('\n') || 'None identified'}
-
-## Counter-Thesis
-
-${report.counter_thesis}
-
-## Confidence
-
-**Score**: ${Math.round(report.confidence_score * 100)}%
-
-${report.confidence_explanation}
-
-## Time Horizon
-
-${report.horizon}
-
-## Limitations
-
-${report.limitations.map((l) => `- ${l}`).join('\n') || 'None identified'}
-
----
-
-*Generated by Text2Invest using ${report.provider_meta.provider}/${report.provider_meta.model}*
-`;
-  }
-
-  private downloadFile(filename: string, content: string, mimeType: string): void {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    const json = generateJSON(report);
+    const filename = `${report.tickers[0]?.symbol || 'report'}-${report.id.slice(0, 8)}.json`;
+    downloadFile(filename, json, 'application/json');
   }
 
   private escapeHtml(text: string): string {

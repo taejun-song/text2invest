@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://text2invest.local/schemas/agent-message.json",
+  "title": "AgentMessage",
+  "description": "A message exchanged between agents",
+  "type": "object",
+  "required": ["id", "sender", "recipient", "message_type", "content", "timestamp", "round_number"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "sender": { "type": "string" },
+    "recipient": { "type": "string" },
+    "message_type": { "type": "string", "enum": ["finding", "query", "challenge", "response"] },
+    "content": { "type": "object" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "round_number": { "type": "integer", "minimum": 1, "maximum": 3 }
+  },
+  "additionalProperties": false
+}

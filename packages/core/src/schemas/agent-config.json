@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://text2invest.local/schemas/agent-config.json",
+  "title": "AgentConfig",
+  "description": "Per-agent configuration",
+  "type": "object",
+  "required": ["agent_id", "enabled", "use_external_data"],
+  "properties": {
+    "agent_id": { "type": "string", "enum": ["news_agent", "fundamentals_agent", "risk_agent", "macro_agent"] },
+    "enabled": { "type": "boolean", "default": true },
+    "use_external_data": { "type": "boolean", "default": true }
+  },
+  "additionalProperties": false
+}

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from uuid import uuid4
 
 from models.idea_report import (
@@ -34,6 +35,8 @@ class FormatterAgent:
         confidence_score: float,
         confidence_explanation: str,
         limitations: list[str],
+        enrichment: dict[str, Any] | None = None,
+        communication_log: Any | None = None,
     ) -> IdeaReport:
         pipeline_duration_ms = int((datetime.now() - self.pipeline_start).total_seconds() * 1000)
 
@@ -59,6 +62,39 @@ class FormatterAgent:
             thesis, formatted_tickers, confidence_score
         )
 
+        # Build enrichment fields
+        news_context = None
+        fundamentals_summary = None
+        cross_reference_analysis = None
+        macro_context = None
+        agent_attributions = None
+
+        if enrichment:
+            news_output = enrichment.get("news_context")
+            if news_output:
+                news_context = [item.model_dump() for item in news_output.news_items]
+
+            fund_output = enrichment.get("fundamentals_summary")
+            if fund_output:
+                fundamentals_summary = [snap.model_dump() for snap in fund_output.snapshots]
+
+            synthesis = enrichment.get("synthesis")
+            if synthesis:
+                if synthesis.cross_reference:
+                    cross_reference_analysis = synthesis.cross_reference.model_dump()
+                agent_attributions = synthesis.agent_attributions or None
+
+            macro_output = enrichment.get("macro_context")
+            if macro_output:
+                if hasattr(macro_output, "context") and macro_output.context:
+                    macro_context = macro_output.context.model_dump()
+                elif hasattr(macro_output, "model_dump"):
+                    macro_context = macro_output.model_dump()
+
+        comm_log_data = None
+        if communication_log:
+            comm_log_data = communication_log.model_dump()
+
         return IdeaReport(
             id=uuid4(),
             created_at=datetime.now(),
@@ -81,6 +117,12 @@ class FormatterAgent:
                 temperature=self.settings.temperature,
                 pipeline_duration_ms=pipeline_duration_ms,
             ),
+            news_context=news_context,
+            fundamentals_summary=fundamentals_summary,
+            cross_reference_analysis=cross_reference_analysis,
+            macro_context=macro_context,
+            agent_attributions=agent_attributions,
+            communication_log=comm_log_data,
         )
 
     def _generate_executive_summary(

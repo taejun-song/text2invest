@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://text2invest.local/schemas/cross-reference.json",
+  "title": "CrossReferenceAnalysis",
+  "description": "Cross-agent comparison results",
+  "type": "object",
+  "required": ["convergences", "divergences", "deduplicated_risks"],
+  "properties": {
+    "convergences": { "type": "array", "items": { "type": "string" }, "description": "Findings where agents agree" },
+    "divergences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["topic", "finding_a", "source_a", "finding_b", "source_b", "explanation"],
+        "properties": {
+          "topic": { "type": "string" },
+          "finding_a": { "type": "string" },
+          "source_a": { "type": "string" },
+          "finding_b": { "type": "string" },
+          "source_b": { "type": "string" },
+          "explanation": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "description": "Findings where agents disagree"
+    },
+    "deduplicated_risks": { "type": "array", "items": { "type": "string" }, "description": "Risks reported once" }
+  },
+  "additionalProperties": false
+}

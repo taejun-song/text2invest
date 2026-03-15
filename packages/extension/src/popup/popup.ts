@@ -7,6 +7,7 @@ const STAGE_LABELS: Record<string, string> = {
   thesis: 'Generating thesis...',
   critique: 'Analyzing risks...',
   confidence: 'Calibrating confidence...',
+  enrichment: 'Enriching with data agents...',
   formatting: 'Formatting report...',
 };
 

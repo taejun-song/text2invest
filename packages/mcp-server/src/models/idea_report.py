@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from datetime import datetime
 from enum import Enum
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -15,6 +18,7 @@ class Provider(str, Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     OLLAMA = "ollama"
+    NRP = "nrp"
 
 
 class Rating(str, Enum):
@@ -76,23 +80,30 @@ class IdeaReport(BaseModel):
     confidence_explanation: str = Field(..., description="Why this confidence level")
     limitations: list[str] = Field(default_factory=list, description="Known limitations")
     provider_meta: ProviderMeta = Field(..., description="LLM provider information")
+    news_context: list[Any] | None = Field(None, description="News items from News Agent")
+    fundamentals_summary: list[Any] | None = Field(None, description="Financial data from Fundamentals Agent")
+    cross_reference_analysis: Any | None = Field(None, description="Cross-agent comparison")
+    macro_context: Any | None = Field(None, description="Macro-economic context")
+    agent_attributions: dict[str, list[str]] | None = Field(None, description="Section to agent attribution")
+    communication_log: Any | None = Field(None, description="Inter-agent communication record")
 
 
 class UserSettings(BaseModel):
     provider: Provider = Field(..., description="LLM provider")
     model: str = Field(..., description="Model identifier")
     api_key: str | None = Field(None, description="API key for cloud providers")
-    base_url: str | None = Field(None, description="Base URL for Ollama")
+    base_url: str | None = Field(None, description="Base URL for Ollama or NRP.ai")
     temperature: float = Field(0.7, ge=0, le=2, description="Generation temperature")
     pii_redaction: bool = Field(True, description="Redact emails and phone numbers")
     web_lookup: bool = Field(False, description="Allow web searches")
+    agent_configs: list[Any] | None = Field(None, description="Per-agent configuration")
 
     @field_validator("api_key")
     @classmethod
     def api_key_required_for_cloud(cls, v: str | None, info) -> str | None:
         if "provider" in info.data:
             provider = info.data["provider"]
-            if provider in (Provider.OPENAI, Provider.ANTHROPIC) and not v:
+            if provider in (Provider.OPENAI, Provider.ANTHROPIC, Provider.NRP) and not v:
                 raise ValueError(f"api_key is required for {provider}")
         return v
 

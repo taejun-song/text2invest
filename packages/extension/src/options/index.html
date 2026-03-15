@@ -227,6 +227,21 @@
       .conditional.visible {
         display: block;
       }
+      .agent-config-item {
+        padding: 12px 0;
+        border-bottom: 1px solid #f3f4f6;
+      }
+      .agent-config-item:last-child {
+        border-bottom: none;
+      }
+      .agent-sub-toggle {
+        margin-top: 8px;
+        transition: opacity 0.2s;
+      }
+      .agent-sub-toggle.disabled {
+        opacity: 0.5;
+        pointer-events: none;
+      }
     </style>
   </head>
   <body>
@@ -243,6 +258,7 @@
               <option value="openai">OpenAI</option>
               <option value="anthropic">Anthropic</option>
               <option value="ollama">Ollama (Local)</option>
+              <option value="nrp">NRP.ai</option>
             </select>
           </div>
           <div id="api-key-group" class="form-group conditional">
@@ -271,6 +287,11 @@
             </div>
             <p class="helper-text">Lower values = more focused, higher values = more creative.</p>
           </div>
+        </div>
+        <div class="card">
+          <h2 class="card-title">Data Agents</h2>
+          <p class="helper-text" style="margin-bottom: 16px;">Enable or disable individual agents and toggle web search per agent.</p>
+          <div id="agent-configs"></div>
         </div>
         <div class="card">
           <h2 class="card-title">Privacy</h2>

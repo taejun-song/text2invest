@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://text2invest.local/schemas/communication-log.json",
+  "title": "CommunicationLog",
+  "description": "Complete record of inter-agent communication",
+  "type": "object",
+  "required": ["id", "messages", "total_rounds", "duration_ms"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "messages": { "type": "array", "items": { "$ref": "agent-message.json" } },
+    "total_rounds": { "type": "integer", "minimum": 0, "maximum": 3 },
+    "duration_ms": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": false
+}
