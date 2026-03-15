@@ -13,12 +13,12 @@ packages/
 
 ## Setup
 
-### 1. MCP Server
+### 1. API Server
 
 ```bash
 cd packages/mcp-server
 uv sync
-uv run fastmcp dev src/server.py
+uv run python src/api_server.py
 ```
 
 ### 2. Chrome Extension
@@ -52,8 +52,8 @@ Load in Chrome:
 ## Usage
 
 1. Navigate to any webpage with financial content
-2. Select text (50+ characters)
-3. Click the extension icon and press **Generate Idea**
+2. Select text (20+ characters)
+3. A floating "Generate Idea" tooltip appears near the selection — click it
 4. View the enriched report in the side panel
 
 ## Data Agents

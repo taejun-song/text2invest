@@ -13,6 +13,19 @@ from models.idea_report import (
 )
 
 
+SUMMARY_LABELS = {
+    "en": {"tickers": "Tickers", "confidence": "Confidence"},
+    "ko": {"tickers": "종목", "confidence": "신뢰도"},
+    "ja": {"tickers": "銘柄", "confidence": "信頼度"},
+    "zh": {"tickers": "股票代码", "confidence": "置信度"},
+    "es": {"tickers": "Valores", "confidence": "Confianza"},
+    "fr": {"tickers": "Titres", "confidence": "Confiance"},
+    "de": {"tickers": "Wertpapiere", "confidence": "Konfidenz"},
+    "pt": {"tickers": "Ativos", "confidence": "Confianca"},
+    "hi": {"tickers": "टिकर", "confidence": "विश्वास"},
+    "ar": {"tickers": "الأسهم", "confidence": "الثقة"},
+}
+
 class FormatterAgent:
     name = "formatter"
 
@@ -128,11 +141,13 @@ class FormatterAgent:
     def _generate_executive_summary(
         self, thesis: str, tickers: list[Ticker], confidence: float
     ) -> list[str]:
+        lang = self.settings.output_language or "en"
+        labels = SUMMARY_LABELS.get(lang, SUMMARY_LABELS["en"])
         summary = []
         if tickers:
             ticker_str = ", ".join(t.symbol for t in tickers[:3])
-            summary.append(f"Tickers: {ticker_str}")
+            summary.append(f"{labels['tickers']}: {ticker_str}")
         thesis_short = thesis[:150] + "..." if len(thesis) > 150 else thesis
         summary.append(thesis_short)
-        summary.append(f"Confidence: {confidence:.0%}")
+        summary.append(f"{labels['confidence']}: {confidence:.0%}")
         return summary[:3]

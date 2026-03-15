@@ -4,6 +4,10 @@ Auto-generated from all feature plans. Last updated: 2026-02-11
 
 ## Active Technologies
 - Python 3.13 (MCP server), TypeScript (Chrome Extension) + FastMCP 2.x, LiteLLM, Pydantic 2.x, duckduckgo-search (server); Chrome Extension APIs (client) (002-multi-agent-data)
+- Python 3.13 (server), TypeScript (extension) + LiteLLM, FastAPI, Pydantic 2.x (server); Chrome Extension APIs MV3 (client) (004-thinking-mode-panel)
+- chrome.storage.local (extension settings + report history) (004-thinking-mode-panel)
+- Python 3.13 (MCP server), TypeScript (Chrome Extension MV3) + FastAPI, LiteLLM, Pydantic 2.x (server); Chrome Extension APIs, Vite (client) (005-panel-chat-language)
+- `chrome.storage.local` (extension settings, reports), in-memory (server) (005-panel-chat-language)
 
 - **Python 3.13**: MCP server (FastMCP 2.x, LiteLLM, Pydantic 2.x)
 - **TypeScript**: Chrome Extension (MV3)
@@ -44,9 +48,10 @@ npm run build  # Production build
 - **TypeScript**: ESLint + Prettier
 
 ## Recent Changes
+- 005-panel-chat-language: Added Python 3.13 (MCP server), TypeScript (Chrome Extension MV3) + FastAPI, LiteLLM, Pydantic 2.x (server); Chrome Extension APIs, Vite (client)
+- 004-thinking-mode-panel: Added Python 3.13 (server), TypeScript (extension) + LiteLLM, FastAPI, Pydantic 2.x (server); Chrome Extension APIs MV3 (client)
 - 002-multi-agent-data: Added Python 3.13 (MCP server), TypeScript (Chrome Extension) + FastMCP 2.x, LiteLLM, Pydantic 2.x, duckduckgo-search (server); Chrome Extension APIs (client)
 
-- 001-text2invest-mcp-extension: Initial implementation
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->

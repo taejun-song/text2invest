@@ -86,6 +86,7 @@ class IdeaReport(BaseModel):
     macro_context: Any | None = Field(None, description="Macro-economic context")
     agent_attributions: dict[str, list[str]] | None = Field(None, description="Section to agent attribution")
     communication_log: Any | None = Field(None, description="Inter-agent communication record")
+    thinking_output: dict[str, Any] | None = Field(None, description="Per-agent thinking/reasoning content")
 
 
 class UserSettings(BaseModel):
@@ -97,6 +98,8 @@ class UserSettings(BaseModel):
     pii_redaction: bool = Field(True, description="Redact emails and phone numbers")
     web_lookup: bool = Field(False, description="Allow web searches")
     agent_configs: list[Any] | None = Field(None, description="Per-agent configuration")
+    thinking_mode: bool = Field(False, description="Enable LLM thinking/reasoning mode")
+    output_language: str | None = Field(None, description="Output language locale code (e.g., ko, ja)")
 
     @field_validator("api_key")
     @classmethod

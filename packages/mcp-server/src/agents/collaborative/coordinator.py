@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from uuid import uuid4
 
@@ -8,9 +9,11 @@ from models.idea_report import UserSettings
 
 from .base import CollaborativeAgent
 
+ThinkingCallback = Callable[[str, str, str], None]  # agent_id, phase, content
+
 logger = logging.getLogger(__name__)
 
-DEFAULT_TIMEOUT = 120
+DEFAULT_TIMEOUT = 60
 
 
 class Coordinator:
@@ -68,15 +71,22 @@ class Coordinator:
         self,
         agents: list[CollaborativeAgent],
         round_number: int = 1,
+        on_agent_done: callable = None,
+        on_thinking: ThinkingCallback | None = None,
         **kwargs,
     ) -> dict[str, object]:
         results: dict[str, object] = {}
 
         async def run_single(agent: CollaborativeAgent):
+            thinking_cb = None
+            if on_thinking and self.settings.thinking_mode:
+                def thinking_cb(content: str):
+                    on_thinking(agent.agent_id, "parallel", content)
             try:
                 received = self.get_messages_for_agent(agent.agent_id)
                 result = await asyncio.wait_for(
                     agent.run(
+                        on_thinking=thinking_cb,
                         received_messages=received,
                         round_number=round_number,
                         **kwargs,
@@ -86,6 +96,8 @@ class Coordinator:
                 new_messages = agent.collect_outbox()
                 self.messages.extend(new_messages)
                 results[agent.agent_id] = result
+                if on_agent_done:
+                    on_agent_done(agent.agent_id)
             except asyncio.TimeoutError:
                 logger.warning(f"Agent {agent.agent_id} timed out in round {round_number}")
             except Exception as e:
@@ -97,6 +109,8 @@ class Coordinator:
     async def coordinate(
         self,
         agents: list[CollaborativeAgent],
+        on_agent_done: callable = None,
+        on_thinking: ThinkingCallback | None = None,
         **kwargs,
     ) -> tuple[dict[str, object], CommunicationLog]:
         start = datetime.now()
@@ -113,7 +127,9 @@ class Coordinator:
         rounds_run = 0
         for round_num in range(1, self.max_rounds + 1):
             round_results = await self.run_agents_parallel(
-                enabled_agents, round_number=round_num, **kwargs,
+                enabled_agents, round_number=round_num,
+                on_agent_done=on_agent_done, on_thinking=on_thinking,
+                **kwargs,
             )
             all_results.update(round_results)
             rounds_run = round_num

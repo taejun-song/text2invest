@@ -48,6 +48,8 @@ class OptionsController {
   private temperatureInput: HTMLInputElement;
   private temperatureValue: HTMLElement;
   private piiRedactionInput: HTMLInputElement;
+  private thinkingModeInput: HTMLInputElement;
+  private outputLanguageSelect: HTMLSelectElement;
   private saveBtn: HTMLButtonElement;
   private resetBtn: HTMLButtonElement;
   private toast: HTMLElement;
@@ -65,6 +67,8 @@ class OptionsController {
     this.temperatureInput = document.getElementById('temperature') as HTMLInputElement;
     this.temperatureValue = document.getElementById('temperature-value')!;
     this.piiRedactionInput = document.getElementById('pii-redaction') as HTMLInputElement;
+    this.thinkingModeInput = document.getElementById('thinking-mode') as HTMLInputElement;
+    this.outputLanguageSelect = document.getElementById('output-language') as HTMLSelectElement;
     this.saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
     this.resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
     this.toast = document.getElementById('toast')!;
@@ -96,6 +100,8 @@ class OptionsController {
       this.temperatureInput.value = String(settings.temperature);
       this.temperatureValue.textContent = String(settings.temperature);
       this.piiRedactionInput.checked = settings.pii_redaction;
+      this.thinkingModeInput.checked = settings.thinking_mode ?? false;
+      this.outputLanguageSelect.value = settings.output_language || 'en';
       if (settings.agent_configs?.length) {
         this.agentConfigs = settings.agent_configs;
         this.renderAgentConfigs();
@@ -223,6 +229,8 @@ class OptionsController {
       model: this.modelInput.value.trim(),
       temperature: parseFloat(this.temperatureInput.value),
       pii_redaction: this.piiRedactionInput.checked,
+      thinking_mode: this.thinkingModeInput.checked,
+      output_language: this.outputLanguageSelect.value,
       web_lookup: false,
       agent_configs: this.agentConfigs,
     };
@@ -249,6 +257,8 @@ class OptionsController {
     this.temperatureInput.value = '0.7';
     this.temperatureValue.textContent = '0.7';
     this.piiRedactionInput.checked = true;
+    this.thinkingModeInput.checked = false;
+    this.outputLanguageSelect.value = 'en';
     this.agentConfigs = [...DEFAULT_AGENT_CONFIGS];
     this.handleProviderChange();
     this.renderAgentConfigs();

@@ -294,6 +294,38 @@
           <div id="agent-configs"></div>
         </div>
         <div class="card">
+          <h2 class="card-title">Output Language</h2>
+          <div class="form-group">
+            <label for="output-language">Language</label>
+            <select id="output-language">
+              <option value="en">English</option>
+              <option value="ko">Korean (한국어)</option>
+              <option value="ja">Japanese (日本語)</option>
+              <option value="zh">Chinese Simplified (简体中文)</option>
+              <option value="es">Spanish (Español)</option>
+              <option value="fr">French (Français)</option>
+              <option value="de">German (Deutsch)</option>
+              <option value="pt">Portuguese (Português)</option>
+              <option value="hi">Hindi (हिन्दी)</option>
+              <option value="ar">Arabic (العربية)</option>
+            </select>
+            <p class="helper-text">Reports and chat responses will be generated in this language.</p>
+          </div>
+        </div>
+        <div class="card">
+          <h2 class="card-title">Advanced</h2>
+          <div class="form-group toggle-group">
+            <div class="toggle-label">
+              <span>Thinking Mode</span>
+              <small>Show LLM reasoning process in the side panel during generation</small>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="thinking-mode" name="thinking_mode" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="card">
           <h2 class="card-title">Privacy</h2>
           <div class="form-group toggle-group">
             <div class="toggle-label">

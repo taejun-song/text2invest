@@ -57,6 +57,19 @@ export interface IdeaReport {
   macro_context?: MacroContext | null;
   agent_attributions?: Record<string, string[]> | null;
   communication_log?: CommunicationLog | null;
+  thinking_output?: Record<string, AgentThinking> | null;
+}
+
+export interface AgentThinking {
+  agent_id: string;
+  phase: 'sequential' | 'parallel';
+  content: string;
+}
+
+export interface ThinkingChunk {
+  agent_id: string;
+  phase: 'sequential' | 'parallel';
+  content: string;
 }
 
 export interface UserSettings {
@@ -68,6 +81,8 @@ export interface UserSettings {
   pii_redaction: boolean;
   web_lookup: boolean;
   agent_configs?: AgentConfig[];
+  thinking_mode: boolean;
+  output_language?: string;
 }
 
 export interface Evaluation {
@@ -84,11 +99,20 @@ export interface IdeaRequest {
   user_settings: UserSettings;
 }
 
+export interface AgentResult {
+  agent_id: string;
+  summary: Record<string, unknown>;
+}
+
 export interface GenerationState {
   status: 'idle' | 'generating' | 'completed' | 'failed';
   request_id?: string;
   started_at?: string;
   current_stage?: string;
+  completed_stages?: string[];
+  enrichment_agents?: string[];
+  thinking_chunks?: ThinkingChunk[];
+  agent_results?: AgentResult[];
   error?: string;
   report?: IdeaReport;
 }
@@ -97,6 +121,12 @@ export interface ErrorResponse {
   error: string;
   message: string;
   details?: Record<string, unknown>;
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
 }
 
 export interface RateLimitError {

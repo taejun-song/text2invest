@@ -15,6 +15,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   temperature: 0.7,
   pii_redaction: true,
   web_lookup: true,
+  thinking_mode: true,
+  output_language: 'ko',
   agent_configs: [
     { agent_id: 'news_agent', enabled: true, use_external_data: true },
     { agent_id: 'fundamentals_agent', enabled: true, use_external_data: true },
