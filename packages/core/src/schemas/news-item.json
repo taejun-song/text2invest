@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://text2invest.local/schemas/news-item.json",
+  "title": "NewsItem",
+  "description": "A news reference discovered by the News Agent",
+  "type": "object",
+  "required": ["headline", "source", "url", "published_date", "sentiment", "relevance_score", "summary", "data_source"],
+  "properties": {
+    "headline": { "type": "string", "description": "News article headline" },
+    "source": { "type": "string", "description": "Publication or website name" },
+    "url": { "type": "string", "format": "uri", "description": "Link to the article" },
+    "published_date": { "type": "string", "description": "Publication date" },
+    "sentiment": { "type": "string", "enum": ["positive", "negative", "neutral"], "description": "Article sentiment" },
+    "relevance_score": { "type": "number", "minimum": 0, "maximum": 1, "description": "Relevance to thesis (0.0 to 1.0)" },
+    "summary": { "type": "string", "description": "2-3 sentence summary" },
+    "data_source": { "type": "string", "enum": ["web_search", "llm_knowledge"], "description": "How this data was obtained" }
+  },
+  "additionalProperties": false
+}

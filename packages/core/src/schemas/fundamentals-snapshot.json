@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://text2invest.local/schemas/fundamentals-snapshot.json",
+  "title": "FundamentalsSnapshot",
+  "description": "Financial data for a company at analysis time",
+  "type": "object",
+  "required": ["ticker", "company_name", "metrics", "data_source", "retrieved_at"],
+  "properties": {
+    "ticker": { "type": "string", "description": "Stock ticker symbol" },
+    "company_name": { "type": "string", "description": "Full company name" },
+    "metrics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "value"],
+        "properties": {
+          "name": { "type": "string", "description": "Metric name" },
+          "value": { "type": "string", "description": "Metric value as formatted string" },
+          "period": { "type": "string", "description": "Reporting period" }
+        },
+        "additionalProperties": false
+      },
+      "description": "Key financial metrics"
+    },
+    "data_source": { "type": "string", "enum": ["web_search", "llm_knowledge"], "description": "How this data was obtained" },
+    "retrieved_at": { "type": "string", "format": "date-time", "description": "When data was retrieved" }
+  },
+  "additionalProperties": false
+}

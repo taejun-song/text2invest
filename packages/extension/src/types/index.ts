@@ -16,11 +16,23 @@ export interface RationaleQuote {
 }
 
 export interface ProviderMeta {
-  provider: 'openai' | 'anthropic' | 'ollama';
+  provider: 'openai' | 'anthropic' | 'ollama' | 'nrp';
   model: string;
   temperature: number;
   pipeline_duration_ms: number;
 }
+
+import type {
+  AgentConfig,
+  CommunicationLog,
+  CrossReferenceAnalysis,
+  FundamentalsSnapshot,
+  MacroContext,
+  NewsItem,
+} from './enriched';
+
+export type { AgentConfig, CommunicationLog, CrossReferenceAnalysis, FundamentalsSnapshot, MacroContext, NewsItem };
+export type { AgentMessage, Divergence, FinancialMetric } from './enriched';
 
 export interface IdeaReport {
   id: string;
@@ -39,16 +51,23 @@ export interface IdeaReport {
   confidence_explanation: string;
   limitations: string[];
   provider_meta: ProviderMeta;
+  news_context?: NewsItem[] | null;
+  fundamentals_summary?: FundamentalsSnapshot[] | null;
+  cross_reference_analysis?: CrossReferenceAnalysis | null;
+  macro_context?: MacroContext | null;
+  agent_attributions?: Record<string, string[]> | null;
+  communication_log?: CommunicationLog | null;
 }
 
 export interface UserSettings {
-  provider: 'openai' | 'anthropic' | 'ollama';
+  provider: 'openai' | 'anthropic' | 'ollama' | 'nrp';
   model: string;
   api_key?: string;
   base_url?: string;
   temperature: number;
   pii_redaction: boolean;
   web_lookup: boolean;
+  agent_configs?: AgentConfig[];
 }
 
 export interface Evaluation {

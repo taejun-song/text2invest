@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://text2invest.local/schemas/macro-context.json",
+  "title": "MacroContext",
+  "description": "Macro-economic context analysis",
+  "type": "object",
+  "required": ["sector", "sector_trends", "economic_indicators", "headwinds", "tailwinds", "data_source"],
+  "properties": {
+    "sector": { "type": "string", "description": "Relevant sector/industry" },
+    "sector_trends": { "type": "array", "items": { "type": "string" }, "description": "Current sector-level trends" },
+    "economic_indicators": { "type": "array", "items": { "type": "string" }, "description": "Relevant economic indicators" },
+    "headwinds": { "type": "array", "items": { "type": "string" }, "description": "Negative macro factors" },
+    "tailwinds": { "type": "array", "items": { "type": "string" }, "description": "Positive macro factors" },
+    "data_source": { "type": "string", "enum": ["web_search", "llm_knowledge"], "description": "How this data was obtained" }
+  },
+  "additionalProperties": false
+}
