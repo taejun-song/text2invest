@@ -31,6 +31,7 @@ class PopupController {
   private generateBtn: HTMLButtonElement;
   private cancelBtn: HTMLButtonElement;
   private viewReportBtn: HTMLButtonElement;
+  private openPanelBtn: HTMLButtonElement;
   private settingsBtn: HTMLButtonElement;
   private currentSelection: SelectionResponse | null = null;
   private currentReport: IdeaReport | null = null;
@@ -47,6 +48,7 @@ class PopupController {
     this.generateBtn = document.getElementById('generate-btn') as HTMLButtonElement;
     this.cancelBtn = document.getElementById('cancel-btn') as HTMLButtonElement;
     this.viewReportBtn = document.getElementById('view-report-btn') as HTMLButtonElement;
+    this.openPanelBtn = document.getElementById('open-panel-btn') as HTMLButtonElement;
     this.settingsBtn = document.getElementById('settings-btn') as HTMLButtonElement;
     this.bindEvents();
     this.init();
@@ -56,6 +58,7 @@ class PopupController {
     this.generateBtn.addEventListener('click', () => this.handleGenerate());
     this.cancelBtn.addEventListener('click', () => this.handleCancel());
     this.viewReportBtn.addEventListener('click', () => this.handleViewReport());
+    this.openPanelBtn.addEventListener('click', () => this.handleOpenPanel());
     this.settingsBtn.addEventListener('click', () => this.handleSettings());
   }
 
@@ -121,11 +124,8 @@ class PopupController {
 
   private async handleGenerate(): Promise<void> {
     if (!this.currentSelection?.valid) return;
-
     this.generateBtn.disabled = true;
-    this.showGenerating('extraction');
-
-    const response = await chrome.runtime.sendMessage({
+    chrome.runtime.sendMessage({
       type: 'GENERATE',
       payload: {
         selection_text: this.currentSelection.text,
@@ -133,13 +133,11 @@ class PopupController {
         title: this.currentSelection.title,
       },
     });
-
-    if ((response as GenerationState).status === 'failed') {
-      this.showError((response as GenerationState).error || 'Generation failed');
-      return;
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) {
+      try { await chrome.sidePanel.open({ tabId: tab.id }); } catch {}
     }
-
-    this.startPolling();
+    window.close();
   }
 
   private async handleCancel(): Promise<void> {
@@ -154,6 +152,15 @@ class PopupController {
 
   private handleViewReport(): void {
     chrome.sidePanel.open({ windowId: chrome.windows.WINDOW_ID_CURRENT });
+  }
+
+  private async handleOpenPanel(): Promise<void> {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) {
+        await chrome.sidePanel.open({ tabId: tab.id });
+      }
+    } catch {}
   }
 
   private handleSettings(): void {

@@ -7,9 +7,31 @@ const KEYS = {
   GENERATION_STATE: 'generation_state',
 } as const;
 
+const DEFAULT_SETTINGS: UserSettings = {
+  provider: (import.meta.env.VITE_DEFAULT_PROVIDER || 'nrp') as UserSettings['provider'],
+  api_key: import.meta.env.VITE_DEFAULT_API_KEY || '',
+  base_url: import.meta.env.VITE_DEFAULT_BASE_URL || 'https://ellm.nrp-nautilus.io/v1',
+  model: import.meta.env.VITE_DEFAULT_MODEL || 'qwen3',
+  temperature: 0.7,
+  pii_redaction: true,
+  web_lookup: true,
+  thinking_mode: true,
+  output_language: 'ko',
+  agent_configs: [
+    { agent_id: 'news_agent', enabled: true, use_external_data: true },
+    { agent_id: 'fundamentals_agent', enabled: true, use_external_data: true },
+    { agent_id: 'risk_agent', enabled: true, use_external_data: true },
+    { agent_id: 'macro_agent', enabled: false, use_external_data: true },
+  ],
+};
+
 export async function getSettings(): Promise<UserSettings | null> {
   const result = await chrome.storage.local.get(KEYS.SETTINGS);
-  return result[KEYS.SETTINGS] ?? null;
+  if (!result[KEYS.SETTINGS]) {
+    await saveSettings(DEFAULT_SETTINGS);
+    return DEFAULT_SETTINGS;
+  }
+  return result[KEYS.SETTINGS];
 }
 
 export async function saveSettings(settings: UserSettings): Promise<void> {

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 class DataSource(str, Enum):
     WEB_SEARCH = "web_search"
+    NEWS_SEARCH = "news_search"
     LLM_KNOWLEDGE = "llm_knowledge"
 
 
