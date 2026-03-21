@@ -21,6 +21,26 @@ class Provider(str, Enum):
     NRP = "nrp"
 
 
+class Signal(str, Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+    HOLD = "HOLD"
+
+
+class SearchDepth(str, Enum):
+    FOCUSED = "focused"
+    STANDARD = "standard"
+    EXPANDED = "expanded"
+
+
+class Relationship(str, Enum):
+    COMPETITOR = "competitor"
+    SUPPLIER = "supplier"
+    CUSTOMER = "customer"
+    SECTOR_PEER = "sector_peer"
+    PARENT_SUBSIDIARY = "parent_subsidiary"
+
+
 class Rating(str, Enum):
     USEFUL = "useful"
     NOT_USEFUL = "not_useful"
@@ -31,10 +51,44 @@ class Source(BaseModel):
     title: str = Field(..., description="Page title")
 
 
+class Recommendation(BaseModel):
+    signal: Signal = Field(..., description="BUY, SELL, or HOLD")
+    certainty: float = Field(..., ge=0, le=1, description="Recommendation certainty")
+    rationale: str = Field(..., max_length=200, description="One-sentence explanation")
+    factors: list[str] = Field(default_factory=list, max_length=5, description="Key signal factors")
+
+
 class Ticker(BaseModel):
-    symbol: str = Field(..., pattern=r"^[A-Z]{1,5}$", description="Stock ticker symbol")
+    symbol: str = Field(..., pattern=r"^[A-Z0-9.\-]{1,12}$", description="Stock ticker symbol")
     company_name: str = Field(..., description="Full company name")
     confidence: float = Field(..., ge=0, le=1, description="Mapping certainty (0.0 to 1.0)")
+    recommendation: Recommendation | None = Field(None, description="BUY/SELL/HOLD recommendation")
+
+
+class RelatedTicker(BaseModel):
+    symbol: str = Field(..., pattern=r"^[A-Z0-9.\-]{1,12}$", description="Ticker symbol")
+    company_name: str = Field(..., description="Full company name")
+    relationship: Relationship = Field(..., description="Relationship to primary ticker")
+    primary_symbol: str = Field(..., description="Which primary ticker this relates to")
+    depth: int = Field(..., ge=1, le=2, description="Discovery depth level")
+    recommendation: Recommendation | None = Field(None, description="BUY/SELL/HOLD recommendation")
+
+
+class InferredTickerReport(BaseModel):
+    symbol: str = Field(..., pattern=r"^[A-Z0-9.\-]{1,12}$", description="Ticker symbol")
+    company_name: str = Field(..., description="Full company name")
+    sector: str = Field(..., description="Sector this company belongs to")
+    relevance_explanation: str = Field(..., max_length=200, description="Why this company was inferred")
+    confidence: str = Field(..., pattern=r"^(high|medium)$", description="Inference confidence level")
+    market_cap_tier: str = Field(..., pattern=r"^(large|mid|small)$", description="Company size")
+    supply_chain_layer: str | None = Field(None, description="Position in value chain")
+    verified: bool = Field(True, description="Whether ticker was verified via market data")
+
+
+class SectorReport(BaseModel):
+    name: str = Field(..., description="Sector name")
+    confidence: str = Field(..., pattern=r"^(high|medium)$", description="Identification confidence")
+    sub_sectors: list[str] = Field(default_factory=list, description="Sub-sectors or supply chain layers")
 
 
 class RationaleQuote(BaseModel):
@@ -87,6 +141,14 @@ class IdeaReport(BaseModel):
     agent_attributions: dict[str, list[str]] | None = Field(None, description="Section to agent attribution")
     communication_log: Any | None = Field(None, description="Inter-agent communication record")
     thinking_output: dict[str, Any] | None = Field(None, description="Per-agent thinking/reasoning content")
+    related_tickers: list[RelatedTicker] = Field(default_factory=list, description="Discovered related tickers")
+    search_depth: str | None = Field(None, description="Search depth used for this report")
+    sectors: list[SectorReport] = Field(default_factory=list, description="Identified sectors from text")
+    inferred_tickers: list[InferredTickerReport] = Field(default_factory=list, description="Tickers inferred from sector analysis")
+    disclaimer: str = Field(
+        default="AI-generated analysis for educational purposes only. Not professional financial advice.",
+        description="Recommendation disclaimer",
+    )
 
 
 class UserSettings(BaseModel):
@@ -100,6 +162,7 @@ class UserSettings(BaseModel):
     agent_configs: list[Any] | None = Field(None, description="Per-agent configuration")
     thinking_mode: bool = Field(False, description="Enable LLM thinking/reasoning mode")
     output_language: str | None = Field(None, description="Output language locale code (e.g., ko, ja)")
+    search_depth: SearchDepth = Field(SearchDepth.STANDARD, description="Related ticker discovery depth")
 
     @field_validator("api_key")
     @classmethod
