@@ -140,3 +140,18 @@ export async function healthCheck(): Promise<{ status: string; version: string }
   const response = await fetch(`${BASE_URL}/health`);
   return handleResponse<{ status: string; version: string }>(response);
 }
+
+export interface TickerSearchResult {
+  symbol: string;
+  name: string;
+  exchange: string;
+}
+
+export async function searchTickers(query: string, marketHint?: string): Promise<TickerSearchResult[]> {
+  const response = await fetch(`${BASE_URL}/api/v1/tickers/search`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, market_hint: marketHint }),
+  });
+  return handleResponse<TickerSearchResult[]>(response);
+}

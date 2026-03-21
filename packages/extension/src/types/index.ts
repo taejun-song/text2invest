@@ -3,10 +3,33 @@ export interface Source {
   title: string;
 }
 
+export type SearchDepth = 'focused' | 'standard' | 'expanded';
+
+export type Signal = 'BUY' | 'SELL' | 'HOLD';
+
+export type RelationshipType = 'competitor' | 'supplier' | 'customer' | 'sector_peer' | 'parent_subsidiary';
+
+export interface Recommendation {
+  signal: Signal;
+  certainty: number;
+  rationale: string;
+  factors: string[];
+}
+
 export interface Ticker {
   symbol: string;
   company_name: string;
   confidence: number;
+  recommendation?: Recommendation | null;
+}
+
+export interface RelatedTicker {
+  symbol: string;
+  company_name: string;
+  relationship: RelationshipType;
+  primary_symbol: string;
+  depth: number;
+  recommendation?: Recommendation | null;
 }
 
 export interface RationaleQuote {
@@ -58,6 +81,9 @@ export interface IdeaReport {
   agent_attributions?: Record<string, string[]> | null;
   communication_log?: CommunicationLog | null;
   thinking_output?: Record<string, AgentThinking> | null;
+  related_tickers?: RelatedTicker[];
+  search_depth?: SearchDepth | null;
+  disclaimer?: string;
 }
 
 export interface AgentThinking {
@@ -83,6 +109,7 @@ export interface UserSettings {
   agent_configs?: AgentConfig[];
   thinking_mode: boolean;
   output_language?: string;
+  search_depth?: SearchDepth;
 }
 
 export interface Evaluation {
@@ -97,6 +124,7 @@ export interface IdeaRequest {
   url: string;
   title: string;
   user_settings: UserSettings;
+  user_tickers?: UserTicker[];
 }
 
 export interface AgentResult {
@@ -133,4 +161,9 @@ export interface RateLimitError {
   error: 'rate_limited';
   message: string;
   retry_after_seconds?: number;
+}
+
+export interface UserTicker {
+  symbol: string;
+  company_name?: string;
 }

@@ -1,8 +1,10 @@
 import sys
 import json
 import asyncio
+import logging
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
+logging.basicConfig(level=logging.INFO)
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
@@ -42,13 +44,20 @@ async def generate_idea(request: IdeaRequest) -> IdeaReport:
 
     try:
         pipeline = Pipeline(request.user_settings)
-        report = await pipeline.run(
-            selection_text=request.selection_text,
-            url=request.url,
-            title=request.title,
+        report = await asyncio.wait_for(
+            pipeline.run(
+                selection_text=request.selection_text,
+                url=request.url,
+                title=request.title,
+                user_tickers=request.user_tickers,
+            ),
+            timeout=600,
         )
         return report
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Pipeline timed out after 10 minutes")
     except Exception as e:
+        logging.getLogger(__name__).exception("generate_idea failed")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         active_generations.pop(request_id, None)
@@ -73,29 +82,44 @@ async def generate_idea_stream(request: IdeaRequest):
     async def run_pipeline():
         try:
             pipeline = Pipeline(request.user_settings)
-            report = await pipeline.run(
-                selection_text=request.selection_text,
-                url=request.url,
-                title=request.title,
-                on_stage=on_stage,
-                on_thinking=on_thinking if request.user_settings.thinking_mode else None,
-                on_agent_result=on_agent_result,
+            report = await asyncio.wait_for(
+                pipeline.run(
+                    selection_text=request.selection_text,
+                    url=request.url,
+                    title=request.title,
+                    on_stage=on_stage,
+                    on_thinking=on_thinking if request.user_settings.thinking_mode else None,
+                    on_agent_result=on_agent_result,
+                    user_tickers=request.user_tickers,
+                ),
+                timeout=600,
             )
             report_json = report.model_dump_json()
             queue.put_nowait(f"event: complete\ndata: {report_json}\n\n")
+        except asyncio.TimeoutError:
+            queue.put_nowait(f"event: error\ndata: {json.dumps({'error': 'Pipeline timed out after 10 minutes'})}\n\n")
         except Exception as e:
             queue.put_nowait(f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n")
         finally:
             queue.put_nowait(None)
 
+    async def heartbeat():
+        while True:
+            await asyncio.sleep(15)
+            queue.put_nowait(f"event: heartbeat\ndata: {json.dumps({'ts': int(asyncio.get_event_loop().time())})}\n\n")
+
     async def event_generator():
         task = asyncio.create_task(run_pipeline())
-        while True:
-            msg = await queue.get()
-            if msg is None:
-                break
-            yield msg
-        await task
+        hb = asyncio.create_task(heartbeat())
+        try:
+            while True:
+                msg = await queue.get()
+                if msg is None:
+                    break
+                yield msg
+        finally:
+            hb.cancel()
+            await task
 
     return StreamingResponse(
         event_generator(),
@@ -150,18 +174,23 @@ async def chat_with_report(request: ChatRequest):
     report_summary = "\n".join(p for p in summary_parts if p)[:4000]
     system_prompt = f"You are an investment analysis assistant. Answer questions about this report:\n\n{report_summary}"
     lang = getattr(request.user_settings, "output_language", None)
-    if lang and lang != "en" and lang in LANGUAGE_NAMES:
+    if lang in ("auto", "en", None, ""):
+        lang = None
+    if lang and lang in LANGUAGE_NAMES:
         system_prompt += f"\n\nIMPORTANT: Respond in {LANGUAGE_NAMES[lang]}."
     messages = [{"role": "system", "content": system_prompt}]
     for msg in request.messages[-10:]:
         messages.append({"role": msg.role, "content": msg.content})
+    if lang and lang in LANGUAGE_NAMES:
+        messages.append({"role": "system", "content": f"REMINDER: You MUST respond in {LANGUAGE_NAMES[lang]}."})
     try:
         llm = LLMProvider(request.user_settings)
         kwargs = llm._build_kwargs()
         kwargs["messages"] = messages
         from litellm import acompletion
         response = await acompletion(**kwargs)
-        content = response.choices[0].message.content or ""
+        msg = response.choices[0].message
+        content = msg.content or getattr(msg, "reasoning", None) or getattr(msg, "reasoning_content", None) or ""
         content = LLMProvider._strip_response(content)
         return {"role": "assistant", "content": content, "timestamp": datetime.now().isoformat()}
     except Exception as e:
@@ -184,6 +213,21 @@ async def submit_evaluation(req: EvaluationRequest):
     )
     evaluations[req.idea_id] = evaluation
     return evaluation
+
+class TickerSearchRequest(BaseModel):
+    query: str
+    market_hint: str | None = None
+
+class TickerSearchResult(BaseModel):
+    symbol: str
+    name: str
+    exchange: str
+
+@app.post("/api/v1/tickers/search")
+async def search_tickers(req: TickerSearchRequest) -> list[TickerSearchResult]:
+    from tools.ticker_search import search_ticker
+    matches = search_ticker(req.query, req.market_hint)
+    return [TickerSearchResult(symbol=m.symbol, name=m.name, exchange=m.exchange) for m in matches[:5]]
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

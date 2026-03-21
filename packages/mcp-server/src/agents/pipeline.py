@@ -33,6 +33,7 @@ class Pipeline:
         on_stage: callable = None,
         on_thinking: ThinkingCallback | None = None,
         on_agent_result: AgentResultCallback | None = None,
+        user_tickers: list | None = None,
     ) -> IdeaReport:
         pipeline_start = datetime.now()
         thinking_mode = self.settings.thinking_mode
@@ -89,13 +90,28 @@ class Pipeline:
             cleaned_text=extraction_output.cleaned_text,
         )
         logger.info("Ticker done")
-        tickers_for_thesis = [t.symbol for t in ticker_output.mappings]
+        from models.agent_outputs import TickerMapping
+        all_mappings = list(ticker_output.mappings)
+        if user_tickers:
+            existing_symbols = {m.symbol.upper() for m in all_mappings}
+            for ut in user_tickers:
+                if ut.symbol.upper() not in existing_symbols:
+                    all_mappings.append(TickerMapping(
+                        company=ut.company_name or ut.symbol,
+                        symbol=ut.symbol,
+                        confidence=1.0,
+                        reasoning="User-provided ticker",
+                    ))
+                    existing_symbols.add(ut.symbol.upper())
+            logger.info(f"Added {len(user_tickers)} user-provided tickers")
+        tickers_for_thesis = [t.symbol for t in all_mappings]
         inferred_symbols = [t.symbol for t in ticker_output.inferred_tickers]
         if on_agent_result:
             on_agent_result("ticker", {
-                "tickers": [{"symbol": t.symbol, "confidence": t.confidence} for t in ticker_output.mappings],
+                "tickers": [{"symbol": t.symbol, "confidence": t.confidence} for t in all_mappings],
                 "inferred_count": len(ticker_output.inferred_tickers),
                 "sectors": [s.name for s in ticker_output.sectors],
+                "user_provided": len(user_tickers) if user_tickers else 0,
             })
 
         if on_stage:
@@ -136,7 +152,7 @@ class Pipeline:
             })
 
         tickers_for_confidence = [
-            {"symbol": t.symbol, "confidence": t.confidence} for t in ticker_output.mappings
+            {"symbol": t.symbol, "confidence": t.confidence} for t in all_mappings
         ]
 
         if on_stage:
@@ -245,7 +261,7 @@ class Pipeline:
                 "company": t.company,
                 "confidence": t.confidence,
             }
-            for t in ticker_output.mappings
+            for t in all_mappings
         ]
 
         quotes_for_formatter = [
