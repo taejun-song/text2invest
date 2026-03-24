@@ -41,13 +41,14 @@ Rules:
 2. Use the exchange where the company has its PRIMARY listing
 3. For non-US companies, ALWAYS include the correct exchange suffix
 4. Do NOT default to US exchanges for non-US companies
-5. If a company is private or you're unsure, do not include it
-6. Provide confidence scores:
+5. If a company is private or you're unsure, SKIP IT ENTIRELY - do not include it in mappings
+6. NEVER use "N/A", "UNKNOWN", "PRIVATE", or any placeholder - only real ticker symbols
+7. Provide confidence scores:
    - 0.9-1.0: Well-known public company with clear ticker
    - 0.7-0.9: Likely correct but some ambiguity
    - 0.5-0.7: Uncertain, multiple possibilities
    - Below 0.5: Do not include
-7. Explain your reasoning for each mapping
+8. Explain your reasoning for each mapping
 
 Output valid JSON matching the schema."""
 
@@ -102,6 +103,16 @@ For each company, provide:
 
     def get_output_model(self) -> type[TickerOutput]:
         return TickerOutput
+
+    def _preprocess_output(self, data: dict) -> dict:
+        import re
+        pattern = re.compile(r"^[A-Z0-9.\-]{1,12}$")
+        if "mappings" in data:
+            data["mappings"] = [
+                m for m in data["mappings"]
+                if m.get("symbol") and pattern.match(m["symbol"])
+            ]
+        return data
 
     def _get_sector_inference_prompt(self, cleaned_text: str, existing_companies: list[str]) -> str:
         lang = self.settings.output_language
@@ -158,17 +169,25 @@ Only include companies you are highly confident about."""
     async def _infer_from_sectors(
         self, cleaned_text: str, existing_companies: list[str], on_thinking: ThinkingCallback | None = None
     ) -> SectorInferenceOutput | None:
-        from providers.llm import get_llm_response
+        import json
         prompt = self._get_sector_inference_prompt(cleaned_text, existing_companies)
+        system_prompt = self._get_sector_inference_system_prompt()
         try:
-            result = await get_llm_response(
-                system_prompt=self._get_sector_inference_system_prompt(),
-                user_prompt=prompt,
-                output_model=SectorInferenceOutput,
-                settings=self.settings,
-                on_thinking=on_thinking,
-            )
-            return result
+            if on_thinking:
+                response = await self.llm.complete_streaming(
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    response_format=SectorInferenceOutput,
+                    on_thinking=on_thinking,
+                )
+            else:
+                response = await self.llm.complete(
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    response_format=SectorInferenceOutput,
+                )
+            data = json.loads(self._extract_json(response))
+            return SectorInferenceOutput.model_validate(data)
         except Exception as e:
             logger.warning(f"Sector inference failed: {e}")
             return None

@@ -1,7 +1,12 @@
-import type { AgentResult, ChatMessage, Evaluation, GenerationState, IdeaReport, NewsItem, FundamentalsSnapshot, AgentMessage, ThinkingChunk } from '../types';
+import type { AgentResult, ChatMessage, Evaluation, GenerationState, IdeaReport, NewsItem, FundamentalsSnapshot, AgentMessage, ThinkingChunk, Recommendation, RelatedTicker, UserTicker } from '../types';
 import { getReports, getEvaluations, getSettings, searchReports, saveEvaluation } from '../lib/storage';
-import { chatWithReport } from '../lib/api';
+import { chatWithReport, searchTickers, TickerSearchResult } from '../lib/api';
 import { generateMarkdown, generateJSON, downloadFile } from '../lib/export';
+
+interface TickerChip {
+  symbol: string;
+  isValid: boolean;
+}
 
 class PanelController {
   private contentEl: HTMLElement;
@@ -23,6 +28,14 @@ class PanelController {
   private thinkingRafId: number | null = null;
   private pendingThinkingUpdate = false;
   private userScrolledUp = false;
+  private userTickers: TickerChip[] = [];
+  private tickerInputEl: HTMLInputElement | null = null;
+  private tickerChipsEl: HTMLElement | null = null;
+  private currentSelection: { text: string; url: string; title: string } | null = null;
+  private suggestions: TickerSearchResult[] = [];
+  private selectedSuggestionIndex = -1;
+  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private suggestionsEl: HTMLElement | null = null;
 
   constructor() {
     this.contentEl = document.getElementById('content')!;
@@ -39,21 +52,269 @@ class PanelController {
   private bindEvents(): void {
     this.tabReportBtn.addEventListener('click', () => this.showTab('report'));
     this.tabHistoryBtn.addEventListener('click', () => this.showTab('history'));
+    this.listenForSelectionChanges();
+  }
+
+  private listenForSelectionChanges(): void {
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message.type === 'SELECTION_CHANGED') {
+        this.currentSelection = { text: message.payload.text, url: message.payload.url, title: message.payload.title };
+        this.showSelectionUI();
+      } else if (message.type === 'SELECTION_CLEARED') {
+        this.currentSelection = null;
+        this.hideSelectionUI();
+      }
+    });
+  }
+
+  private showSelectionUI(): void {
+    if (!this.currentSelection) return;
+    let container = document.getElementById('selection-ui');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'selection-ui';
+      container.innerHTML = `
+        <style>
+          #selection-ui { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px; padding: 16px 20px; }
+          .selection-preview { font-size: 13px; color: #6b7280; margin-bottom: 12px; max-height: 60px; overflow: hidden; text-overflow: ellipsis; }
+          .ticker-input-container { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border: 1px solid #d1d5db; border-radius: 8px; background: #f9fafb; min-height: 38px; align-items: center; margin-bottom: 12px; }
+          .ticker-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: #eff6ff; border-radius: 12px; font-size: 12px; font-weight: 500; color: #2563eb; }
+          .ticker-chip.invalid { background: #fee2e2; color: #991b1b; }
+          .ticker-chip-remove { cursor: pointer; font-size: 14px; line-height: 1; opacity: 0.7; }
+          .ticker-chip-remove:hover { opacity: 1; }
+          .ticker-input { border: none; outline: none; background: transparent; font-size: 13px; flex: 1; min-width: 80px; }
+          .ticker-input::placeholder { color: #9ca3af; }
+          .generate-btn { width: 100%; padding: 10px 16px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }
+          .generate-btn:hover { background: #1d4ed8; }
+          .generate-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+          .ticker-label { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
+          .ticker-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; max-height: 200px; overflow-y: auto; margin-top: 4px; }
+          .ticker-suggestion { padding: 10px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+          .ticker-suggestion:hover, .ticker-suggestion.selected { background: #f3f4f6; }
+          .ticker-suggestion-symbol { font-weight: 600; color: #2563eb; }
+          .ticker-suggestion-name { font-size: 12px; color: #6b7280; flex: 1; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .ticker-suggestion-exchange { font-size: 11px; color: #9ca3af; }
+          .ticker-input-wrapper { position: relative; }
+        </style>
+        <div class="selection-preview" id="selection-preview"></div>
+        <div class="ticker-label">Add tickers (optional)</div>
+        <div class="ticker-input-wrapper">
+          <div class="ticker-input-container" id="ticker-chips">
+            <input type="text" class="ticker-input" id="ticker-input" placeholder="e.g., AAPL or Apple..." autocomplete="off" />
+          </div>
+          <div class="ticker-suggestions hidden" id="ticker-suggestions"></div>
+        </div>
+        <button class="generate-btn" id="generate-btn">Generate Report</button>
+      `;
+      this.contentEl.insertBefore(container, this.contentEl.firstChild);
+    }
+    const preview = document.getElementById('selection-preview');
+    if (preview) preview.textContent = this.currentSelection.text.slice(0, 150) + (this.currentSelection.text.length > 150 ? '...' : '');
+    this.tickerInputEl = document.getElementById('ticker-input') as HTMLInputElement;
+    this.tickerChipsEl = document.getElementById('ticker-chips');
+    this.bindTickerInputEvents();
+    this.bindGenerateButton();
+    container.classList.remove('hidden');
+  }
+
+  private hideSelectionUI(): void {
+    const container = document.getElementById('selection-ui');
+    if (container) container.classList.add('hidden');
+  }
+
+  private bindTickerInputEvents(): void {
+    if (!this.tickerInputEl) return;
+    this.suggestionsEl = document.getElementById('ticker-suggestions');
+    this.tickerInputEl.addEventListener('keydown', (e) => {
+      if (this.suggestions.length > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          this.selectedSuggestionIndex = Math.min(this.selectedSuggestionIndex + 1, this.suggestions.length - 1);
+          this.renderSuggestions();
+          return;
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          this.selectedSuggestionIndex = Math.max(this.selectedSuggestionIndex - 1, -1);
+          this.renderSuggestions();
+          return;
+        } else if (e.key === 'Enter' && this.selectedSuggestionIndex >= 0) {
+          e.preventDefault();
+          this.selectSuggestion(this.suggestions[this.selectedSuggestionIndex]);
+          return;
+        } else if (e.key === 'Escape') {
+          this.hideSuggestions();
+          return;
+        }
+      }
+      if (e.key === 'Enter' || e.key === ',' || e.key === 'Tab') {
+        e.preventDefault();
+        this.addTickerFromInput();
+      } else if (e.key === 'Backspace' && !this.tickerInputEl!.value && this.userTickers.length > 0) {
+        this.removeTicker(this.userTickers.length - 1);
+      }
+    });
+    this.tickerInputEl.addEventListener('input', () => this.onTickerInputChange());
+    this.tickerInputEl.addEventListener('blur', () => {
+      setTimeout(() => this.hideSuggestions(), 150);
+      this.addTickerFromInput();
+    });
+  }
+
+  private onTickerInputChange(): void {
+    const query = this.tickerInputEl?.value.trim() || '';
+    if (this.debounceTimer) clearTimeout(this.debounceTimer);
+    if (query.length < 2) {
+      this.hideSuggestions();
+      return;
+    }
+    this.debounceTimer = setTimeout(() => this.fetchSuggestions(query), 300);
+  }
+
+  private async fetchSuggestions(query: string): Promise<void> {
+    try {
+      const results = await searchTickers(query);
+      this.suggestions = results;
+      this.selectedSuggestionIndex = -1;
+      if (results.length > 0) {
+        this.renderSuggestions();
+        this.suggestionsEl?.classList.remove('hidden');
+      } else {
+        this.hideSuggestions();
+      }
+    } catch {
+      this.hideSuggestions();
+    }
+  }
+
+  private renderSuggestions(): void {
+    if (!this.suggestionsEl) return;
+    this.suggestionsEl.innerHTML = this.suggestions.map((s, i) => `
+      <div class="ticker-suggestion${i === this.selectedSuggestionIndex ? ' selected' : ''}" data-index="${i}">
+        <span class="ticker-suggestion-symbol">${this.escapeHtml(s.symbol)}</span>
+        <span class="ticker-suggestion-name">${this.escapeHtml(s.name)}</span>
+        <span class="ticker-suggestion-exchange">${this.escapeHtml(s.exchange)}</span>
+      </div>
+    `).join('');
+    this.suggestionsEl.querySelectorAll('.ticker-suggestion').forEach((el) => {
+      el.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const index = parseInt(el.getAttribute('data-index') || '0');
+        this.selectSuggestion(this.suggestions[index]);
+      });
+    });
+  }
+
+  private selectSuggestion(suggestion: TickerSearchResult): void {
+    this.addTicker(suggestion.symbol);
+    this.userTickers[this.userTickers.length - 1] = { symbol: suggestion.symbol, isValid: true };
+    if (this.tickerInputEl) this.tickerInputEl.value = '';
+    this.renderTickerChips();
+    this.hideSuggestions();
+    this.tickerInputEl?.focus();
+  }
+
+  private hideSuggestions(): void {
+    this.suggestions = [];
+    this.selectedSuggestionIndex = -1;
+    this.suggestionsEl?.classList.add('hidden');
+  }
+
+  private bindGenerateButton(): void {
+    const btn = document.getElementById('generate-btn');
+    btn?.addEventListener('click', () => this.triggerGenerate());
+  }
+
+  private addTickerFromInput(): void {
+    if (!this.tickerInputEl) return;
+    const raw = this.tickerInputEl.value.trim();
+    if (!raw) return;
+    const symbols = raw.split(',').map((s) => s.trim().toUpperCase()).filter((s) => s);
+    for (const symbol of symbols) {
+      this.addTicker(symbol);
+    }
+    this.tickerInputEl.value = '';
+    this.renderTickerChips();
+  }
+
+  private addTicker(symbol: string): void {
+    const normalized = symbol.toUpperCase().trim();
+    if (!normalized) return;
+    if (this.userTickers.some((t) => t.symbol === normalized)) return;
+    const isValid = /^[A-Z0-9.\-]{1,12}$/.test(normalized);
+    this.userTickers.push({ symbol: normalized, isValid });
+  }
+
+  private removeTicker(index: number): void {
+    this.userTickers.splice(index, 1);
+    this.renderTickerChips();
+  }
+
+  private renderTickerChips(): void {
+    if (!this.tickerChipsEl || !this.tickerInputEl) return;
+    const existingChips = this.tickerChipsEl.querySelectorAll('.ticker-chip');
+    existingChips.forEach((chip) => chip.remove());
+    for (let i = 0; i < this.userTickers.length; i++) {
+      const chip = this.userTickers[i];
+      const el = document.createElement('span');
+      el.className = `ticker-chip${chip.isValid ? '' : ' invalid'}`;
+      el.innerHTML = `${this.escapeHtml(chip.symbol)} <span class="ticker-chip-remove" data-index="${i}">&times;</span>`;
+      this.tickerChipsEl.insertBefore(el, this.tickerInputEl);
+    }
+    this.tickerChipsEl.querySelectorAll('.ticker-chip-remove').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const index = parseInt((e.target as HTMLElement).getAttribute('data-index') || '0');
+        this.removeTicker(index);
+      });
+    });
+    this.updateGenerateButtonState();
+  }
+
+  private updateGenerateButtonState(): void {
+    const btn = document.getElementById('generate-btn') as HTMLButtonElement;
+    if (!btn) return;
+    const hasInvalid = this.userTickers.some((t) => !t.isValid);
+    btn.disabled = hasInvalid;
+    btn.title = hasInvalid ? 'Fix invalid tickers before generating' : '';
+  }
+
+  private async triggerGenerate(): Promise<void> {
+    if (!this.currentSelection) return;
+    const hasInvalid = this.userTickers.some((t) => !t.isValid);
+    if (hasInvalid) return;
+    const userTickers: UserTicker[] = this.userTickers.filter((t) => t.isValid).map((t) => ({ symbol: t.symbol }));
+    await chrome.runtime.sendMessage({
+      type: 'GENERATE',
+      payload: {
+        selection_text: this.currentSelection.text,
+        url: this.currentSelection.url,
+        title: this.currentSelection.title,
+        user_tickers: userTickers.length > 0 ? userTickers : undefined,
+      },
+    });
+    this.userTickers = [];
+    this.renderTickerChips();
+    this.hideSelectionUI();
   }
 
   private async init(): Promise<void> {
     const evals = await getEvaluations();
     evals.forEach((e) => this.evaluations.set(e.idea_id, e));
+    this.startPolling();
     const state = await this.getState();
     if (state.status === 'completed' && state.report) {
+      this.stopPolling();
       this.currentReport = state.report;
       this.renderReport(state.report);
       this.showTab('report');
     } else if (state.status === 'generating') {
       this.renderProgress(state);
-      this.startPolling();
     } else {
       await this.loadHistory();
+    }
+    const result = await chrome.storage.local.get('current_selection');
+    if (result.current_selection) {
+      this.currentSelection = result.current_selection;
+      this.showSelectionUI();
     }
   }
 
@@ -64,7 +325,9 @@ class PanelController {
     thesis: 'Generating thesis',
     critique: 'Analyzing risks',
     confidence: 'Scoring confidence',
+    discovery: 'Discovering related tickers',
     enrichment: 'Data agents',
+    recommendation: 'Generating recommendations',
     formatting: 'Formatting report',
   };
 
@@ -77,7 +340,7 @@ class PanelController {
   };
 
   private static readonly PIPELINE_STAGES = [
-    'extraction', 'entity', 'ticker', 'thesis', 'critique', 'confidence', 'enrichment', 'formatting',
+    'extraction', 'entity', 'ticker', 'thesis', 'critique', 'confidence', 'discovery', 'enrichment', 'recommendation', 'formatting',
   ];
 
   private renderProgress(state: GenerationState): void {
@@ -90,13 +353,26 @@ class PanelController {
     const currentStage = state.current_stage || '';
     const results = state.agent_results || [];
 
+    const retryInfo = new Map<string, string>();
+    for (const s of completed) {
+      if (s.startsWith('retry:')) {
+        const parts = s.split(':');
+        retryInfo.set(parts[1], `(attempt ${parseInt(parts[2]) + 1}/${parts[3]})`);
+      }
+    }
+
+    const mainStage = currentStage.startsWith('retry:') ? currentStage.split(':')[1]
+      : currentStage.startsWith('result:') ? currentStage.split(':')[1]
+      : currentStage.startsWith('enrichment:') ? 'enrichment'
+      : currentStage;
     const stagesHtml = PanelController.PIPELINE_STAGES.map((stage) => {
       const isDone = completed.includes(stage) && (stage !== 'enrichment' || completed.includes('formatting'));
-      const isCurrent = !isDone && completed.includes(stage) || currentStage === stage;
+      const isCurrent = !isDone && (stage === mainStage);
       const icon = isDone ? '<span class="stage-icon done">&#10003;</span>'
         : isCurrent ? '<span class="stage-icon current"><span class="spinner-sm"></span></span>'
         : '<span class="stage-icon pending">&#9675;</span>';
-      const label = PanelController.STAGE_LABELS[stage] || stage;
+      const retry = retryInfo.get(stage);
+      const label = (PanelController.STAGE_LABELS[stage] || stage) + (retry && isCurrent ? ` <span class="retry-badge">${retry}</span>` : '');
       const cls = isDone ? 'done' : isCurrent ? 'current' : 'pending';
       const resultPreview = this.renderResultPreview(stage, results);
 
@@ -104,7 +380,7 @@ class PanelController {
       if (stage === 'enrichment' && enrichmentAgents.length > 0) {
         agentSublist = '<ul class="agent-progress">' + enrichmentAgents.map((agentId) => {
           const agentDone = completed.includes(`agent:${agentId}`);
-          const agentActive = !agentDone && completed.includes('enrichment');
+          const agentActive = !agentDone && (mainStage === 'enrichment' || completed.includes('enrichment'));
           const aIcon = agentDone ? '<span class="stage-icon done">&#10003;</span>'
             : agentActive ? '<span class="stage-icon current"><span class="spinner-sm"></span></span>'
             : '<span class="stage-icon pending">&#9675;</span>';
@@ -120,7 +396,7 @@ class PanelController {
 
     const thinkingChunks = state.thinking_chunks || [];
     const thinkingHtml = thinkingChunks.length > 0 ? this.renderThinking(thinkingChunks) : '';
-    const stageLabel = PanelController.STAGE_LABELS[currentStage] || currentStage || 'Starting';
+    const stageLabel = PanelController.STAGE_LABELS[mainStage] || PanelController.AGENT_LABELS[mainStage] || mainStage || 'Starting';
 
     this.reportViewEl.innerHTML = `
       <div class="progress-view">
@@ -137,7 +413,8 @@ class PanelController {
     this.generationStartedAt = state.started_at || null;
     this.startElapsedTimer();
     this.bindThinkingScroll();
-    this.showTab('report');
+    this.tabReportBtn.classList.add('active');
+    this.tabHistoryBtn.classList.remove('active');
   }
 
   private startElapsedTimer(): void {
@@ -181,34 +458,67 @@ class PanelController {
     const result = results.find((r) => r.agent_id === agentId);
     if (!result) return '';
     const s = result.summary;
-    let text = '';
-    if (agentId === 'entity') {
+    const lines: string[] = [];
+    if (agentId === 'extraction') {
+      if (s.language) lines.push(`Language: ${s.language}`);
+    } else if (agentId === 'entity') {
       const companies = s.companies as string[] | undefined;
-      text = companies?.length ? companies.join(', ') : '';
+      if (companies?.length) lines.push(companies.join(', '));
     } else if (agentId === 'ticker') {
       const tickers = s.tickers as Array<{ symbol: string; confidence: number }> | undefined;
-      text = tickers?.map((t) => `${t.symbol} (${Math.round(t.confidence * 100)}%)`).join(', ') || '';
+      if (tickers?.length) lines.push(tickers.map((t) => `${t.symbol} (${Math.round(t.confidence * 100)}%)`).join(', '));
     } else if (agentId === 'thesis') {
-      text = (s.thesis as string || '').slice(0, 120) + ((s.thesis as string || '').length > 120 ? '...' : '');
+      const thesis = s.thesis as string || '';
+      if (thesis) lines.push(thesis.slice(0, 200) + (thesis.length > 200 ? '...' : ''));
+      const catalysts = s.catalysts as string[] | undefined;
+      if (catalysts?.length) lines.push(`Catalysts: ${catalysts.join('; ')}`);
+      if (s.horizon) lines.push(`Horizon: ${s.horizon}`);
     } else if (agentId === 'critique') {
       const risks = s.risks as string[] | undefined;
-      text = risks?.length ? `${s.risks_count} risks: ${risks[0].slice(0, 60)}...` : '';
+      if (risks?.length) {
+        for (const r of risks.slice(0, 2)) lines.push(`• ${r.slice(0, 100)}${r.length > 100 ? '...' : ''}`);
+        if ((s.risks_count as number) > 2) lines.push(`+ ${(s.risks_count as number) - 2} more`);
+      }
+      const ct = s.counter_thesis as string | undefined;
+      if (ct) lines.push(`Counter: ${ct.slice(0, 120)}${ct.length > 120 ? '...' : ''}`);
     } else if (agentId === 'confidence') {
-      text = `Score: ${Math.round((s.score as number || 0) * 100)}%`;
+      lines.push(`Score: ${Math.round((s.score as number || 0) * 100)}%`);
+      const expl = s.explanation as string | undefined;
+      if (expl) lines.push(expl.slice(0, 150) + (expl.length > 150 ? '...' : ''));
     } else if (agentId === 'news_agent') {
       const headlines = s.headlines as string[] | undefined;
-      text = headlines?.length ? `${s.count} articles — ${headlines[0]}` : `${s.count || 0} articles`;
+      if (headlines?.length) {
+        for (const h of headlines) lines.push(`• ${h}`);
+      } else {
+        lines.push(`${s.count || 0} articles`);
+      }
     } else if (agentId === 'fundamentals_agent') {
       const metrics = s.metrics as Array<{ name: string; value: string }> | undefined;
-      text = metrics?.map((m) => `${m.name}: ${m.value}`).join(' · ') || '';
+      if (metrics?.length) lines.push(metrics.map((m) => `${m.name}: ${m.value}`).join(' · '));
     } else if (agentId === 'macro_agent') {
-      text = `${s.sector || ''}`;
-      if (s.tailwinds || s.headwinds) text += ` — ${s.tailwinds} tailwinds, ${s.headwinds} headwinds`;
+      let t = `${s.sector || ''}`;
+      if (s.tailwinds || s.headwinds) t += ` — ${s.tailwinds} tailwinds, ${s.headwinds} headwinds`;
+      lines.push(t);
     } else if (agentId === 'risk_agent') {
-      text = s.top_risk ? `${s.risks_count} risks — ${(s.top_risk as string).slice(0, 80)}` : '';
+      if (s.top_risk) lines.push(`${s.risks_count} risks — ${(s.top_risk as string).slice(0, 80)}`);
+    } else if (agentId === 'discovery') {
+      const companies = s.companies as Array<{ symbol: string; name: string; relationship: string }> | undefined;
+      if (companies?.length) {
+        for (const c of companies) lines.push(`${c.symbol} (${c.name}) — ${c.relationship}`);
+      } else {
+        lines.push(`${s.related_count || 0} related tickers`);
+      }
+    } else if (agentId === 'recommendation') {
+      const signals = s.signals as Array<{ symbol: string; signal: string; certainty: number }> | undefined;
+      if (signals?.length) {
+        lines.push(signals.map((r) => `${r.symbol}: ${r.signal} ${Math.round(r.certainty * 100)}%`).join(', '));
+      } else {
+        lines.push(`${s.count || 0} recommendations`);
+      }
     }
-    if (!text) return '';
-    return `<div class="result-preview">${this.escapeHtml(text)}</div>`;
+    if (!lines.length) return '';
+    const escaped = lines.map((l) => this.escapeHtml(l));
+    return `<div class="result-preview">${escaped.join('<br/>')}</div>`;
   }
 
   private static readonly THINKING_MAX_CHARS = 50000;
@@ -277,6 +587,7 @@ class PanelController {
         this.reportViewEl.classList.remove('hidden');
       } else if (state.status === 'generating') {
         this.renderProgress(state);
+        if (!this.pollTimer) this.startPolling();
       }
     });
   }
@@ -313,11 +624,8 @@ class PanelController {
   }
 
   private async getState(): Promise<GenerationState> {
-    return new Promise((resolve) => {
-      chrome.runtime.sendMessage({ type: 'GET_STATE' }, (response: GenerationState) => {
-        resolve(response || { status: 'idle' });
-      });
-    });
+    const result = await chrome.storage.local.get('generation_state');
+    return result.generation_state || { status: 'idle' };
   }
 
   private showTab(tab: 'report' | 'history'): void {
@@ -518,10 +826,11 @@ class PanelController {
         </div>
       </div>
       <div class="disclaimer">
-        ⚠️ Educational only - Not financial advice
+        ${this.escapeHtml(report.disclaimer || 'AI-generated analysis for educational purposes only. Not professional financial advice.')}
       </div>
       ${this.renderSection('Executive Summary', this.renderExecutiveSummary(report.executive_summary))}
       ${this.renderSection('Tickers', this.renderTickers(report.tickers))}
+      ${report.related_tickers?.length ? this.renderSection('Related Tickers', this.renderRelatedTickers(report.related_tickers)) : ''}
       ${this.renderSection('Investment Thesis', `<div class="thesis">${this.escapeHtml(report.thesis)}</div>`)}
       ${this.renderSection('Supporting Quotes', this.renderQuotes(report.rationale_quotes))}
       ${this.renderSection('Catalysts', this.renderList(report.catalysts))}
@@ -615,22 +924,61 @@ class PanelController {
     return `<ul class="list">${summary.map((s) => `<li>${this.escapeHtml(s)}</li>`).join('')}</ul>`;
   }
 
+  private renderRecommendationBadge(rec?: Recommendation | null): string {
+    if (!rec) return '';
+    const cls = rec.signal === 'BUY' ? 'rec-buy' : rec.signal === 'SELL' ? 'rec-sell' : 'rec-hold';
+    return `<span class="rec-badge ${cls}" title="${this.escapeHtml(rec.rationale)}">${rec.signal} ${Math.round(rec.certainty * 100)}%</span>`;
+  }
+
   private renderTickers(tickers: IdeaReport['tickers']): string {
     if (tickers.length === 0) return '<p>No tickers identified</p>';
     return `
       <div class="tickers">
         ${tickers
           .map(
-            (t) => `
-          <span class="ticker">
+            (t) => {
+              const isUserProvided = t.confidence === 1.0;
+              return `
+          <span class="ticker${isUserProvided ? ' user-provided' : ''}">
             <span class="ticker-symbol">${this.escapeHtml(t.symbol)}</span>
-            <span class="ticker-confidence">${Math.round(t.confidence * 100)}%</span>
+            ${isUserProvided ? '<span class="ticker-user-label">(user)</span>' : `<span class="ticker-confidence">${Math.round(t.confidence * 100)}%</span>`}
+            ${this.renderRecommendationBadge(t.recommendation)}
           </span>
-        `
+        `;
+            }
           )
           .join('')}
       </div>
     `;
+  }
+
+  private renderRelatedTickers(tickers: RelatedTicker[]): string {
+    if (!tickers.length) return '<p>No related tickers discovered</p>';
+    const grouped = new Map<string, RelatedTicker[]>();
+    for (const t of tickers) {
+      const list = grouped.get(t.primary_symbol) || [];
+      list.push(t);
+      grouped.set(t.primary_symbol, list);
+    }
+    let html = '';
+    for (const [primary, related] of grouped) {
+      html += `<div class="related-group"><div class="related-primary">Related to ${this.escapeHtml(primary)}</div>`;
+      html += related.map((t) => `
+        <div class="related-ticker">
+          <div class="related-ticker-header">
+            <span class="ticker-symbol">${this.escapeHtml(t.symbol)}</span>
+            <span class="related-name">${this.escapeHtml(t.company_name)}</span>
+            ${this.renderRecommendationBadge(t.recommendation)}
+          </div>
+          <div class="related-meta">
+            <span class="relationship-badge">${t.relationship.replace('_', ' ')}</span>
+            <span class="depth-label">Depth ${t.depth}</span>
+          </div>
+        </div>
+      `).join('');
+      html += '</div>';
+    }
+    return html;
   }
 
   private renderQuotes(quotes: IdeaReport['rationale_quotes']): string {

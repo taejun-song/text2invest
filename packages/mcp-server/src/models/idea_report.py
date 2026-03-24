@@ -190,6 +190,11 @@ class Evaluation(BaseModel):
     created_at: datetime = Field(..., description="Rating timestamp")
 
 
+class UserTicker(BaseModel):
+    symbol: str = Field(..., pattern=r"^[A-Z0-9.\-]{1,12}$", description="Ticker symbol")
+    company_name: str | None = Field(None, description="Optional company name")
+
+
 class IdeaRequest(BaseModel):
     selection_text: str = Field(
         ..., min_length=20, max_length=8000, description="Text selected by user"
@@ -197,3 +202,4 @@ class IdeaRequest(BaseModel):
     url: str = Field(..., description="Source page URL")
     title: str = Field(..., description="Source page title")
     user_settings: UserSettings = Field(..., description="User configuration")
+    user_tickers: list[UserTicker] = Field(default_factory=list, description="User-provided tickers to include")

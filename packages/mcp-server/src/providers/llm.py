@@ -1,4 +1,5 @@
 import json
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -6,6 +7,8 @@ from litellm import acompletion
 from pydantic import BaseModel
 
 from models.idea_report import Provider, UserSettings
+
+logger = logging.getLogger(__name__)
 
 ThinkingCallback = Callable[[str], None]
 
@@ -34,7 +37,7 @@ class LLMProvider:
             "model": self._model_name,
             "temperature": self.settings.temperature,
             "max_tokens": 4096,
-            "timeout": 60,
+            "timeout": 180,
         }
         if self.settings.provider == Provider.OPENAI:
             if self.settings.api_key:
@@ -50,10 +53,9 @@ class LLMProvider:
         elif self.settings.provider == Provider.NRP:
             kwargs["api_key"] = self.settings.api_key
             kwargs["api_base"] = self.settings.base_url or "https://ellm.nrp-nautilus.io/v1"
-        tm = thinking_mode if thinking_mode is not None else self.settings.thinking_mode
-        if not tm and self.settings.provider == Provider.NRP:
-            kwargs.setdefault("extra_body", {})
-            kwargs["extra_body"]["chat_template_kwargs"] = {"enable_thinking": False}
+            if not thinking_mode:
+                kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+                kwargs["temperature"] = max(self.settings.temperature, 0.01)
         return kwargs
 
     async def complete(
@@ -78,8 +80,14 @@ class LLMProvider:
                     f"{json.dumps(response_format.model_json_schema(), indent=2)}"
                 )
 
+        logger.info(f"LLM call starting: model={kwargs.get('model')}, max_tokens={kwargs.get('max_tokens')}, response_format={kwargs.get('response_format')}")
         response = await acompletion(**kwargs)
-        content = response.choices[0].message.content
+        msg = response.choices[0].message
+        content = msg.content
+        logger.info(f"LLM response: content={'present' if content else 'None'}, len={len(content) if content else 0}, finish={response.choices[0].finish_reason}, tokens={getattr(response, 'usage', None)}")
+        if content is None:
+            content = getattr(msg, "reasoning", None) or getattr(msg, "reasoning_content", None)
+            logger.info(f"Fallback to reasoning: {'found' if content else 'None'}, len={len(content) if content else 0}")
         if content is None:
             raise ValueError("LLM returned empty response")
         cleaned = self._strip_response(content)
@@ -112,6 +120,7 @@ class LLMProvider:
         response_format: type[BaseModel] | None = None,
         on_thinking: ThinkingCallback | None = None,
     ) -> str:
+        import asyncio
         messages: list[dict[str, Any]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -130,11 +139,25 @@ class LLMProvider:
         buffer = ""
         inside_think = False
         content_parts: list[str] = []
-        async for chunk in response:
+        empty_chunk_count = 0
+        stream_iter = response.__aiter__()
+        while True:
+            try:
+                chunk = await asyncio.wait_for(stream_iter.__anext__(), timeout=60)
+            except StopAsyncIteration:
+                break
+            except asyncio.TimeoutError:
+                logger.warning("Stream chunk timeout, ending stream")
+                break
             delta = chunk.choices[0].delta
             text = delta.content or ""
             if not text:
+                empty_chunk_count += 1
+                if empty_chunk_count > 100:
+                    logger.warning("Too many empty chunks, breaking stream")
+                    break
                 continue
+            empty_chunk_count = 0
             buffer += text
             while True:
                 if inside_think:
@@ -198,6 +221,8 @@ class LLMProvider:
             response = await acompletion(**kwargs)
             message = response.choices[0].message
             content = message.content or ""
+            if not content:
+                content = getattr(message, "reasoning", None) or getattr(message, "reasoning_content", None) or ""
             if first_call and thinking_mode and on_thinking and content:
                 thinking, _ = self._parse_think_tags(content)
                 if thinking:
@@ -224,7 +249,9 @@ class LLMProvider:
         kwargs.pop("tools", None)
         kwargs["messages"].append({"role": "user", "content": "Now respond with ONLY valid JSON. No markdown, no explanation."})
         last_response = await acompletion(**kwargs)
-        return self._strip_response(last_response.choices[0].message.content or "")
+        last_msg = last_response.choices[0].message
+        last_content = last_msg.content or getattr(last_msg, "reasoning", None) or getattr(last_msg, "reasoning_content", None) or ""
+        return self._strip_response(last_content)
 
 
 async def complete(

@@ -44,7 +44,11 @@ class FinancialMetric(BaseModel):
 class FundamentalsSnapshot(BaseModel):
     ticker: str = Field(..., description="Stock ticker symbol")
     company_name: str = Field(..., description="Full company name")
+    exchange: str = Field("", description="Exchange name")
+    currency: str = Field("USD", description="Native currency code")
     metrics: list[FinancialMetric] = Field(default_factory=list, description="Key financial metrics")
+    fundamental_data: dict | None = Field(None, description="Structured fundamental data from provider")
+    historical_trends: list[dict] = Field(default_factory=list, description="Historical trend data")
     data_source: DataSource = Field(..., description="How this data was obtained")
     retrieved_at: datetime = Field(..., description="When data was retrieved")
 

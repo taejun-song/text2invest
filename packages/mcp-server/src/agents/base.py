@@ -1,3 +1,4 @@
+import asyncio
 import json
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -80,34 +81,54 @@ class BaseAgent(ABC):
                     break
         return cleaned[brace:end + 1]
 
-    async def run(self, on_thinking: ThinkingCallback | None = None, **kwargs) -> T:
+    def _preprocess_output(self, data: dict) -> dict:
+        return data
+
+    async def run(self, on_thinking: ThinkingCallback | None = None, on_retry: Callable[[int, int], None] | None = None, **kwargs) -> T:
         system_prompt = self.get_system_prompt()
         lang = self.settings.output_language
         if lang and lang != "en" and lang in LANGUAGE_NAMES:
             system_prompt += f"\n\nIMPORTANT: Write all text values in {LANGUAGE_NAMES[lang]}. Keep JSON keys, ticker symbols, numbers, and dates in English."
         user_prompt = self.get_user_prompt(**kwargs)
+        if lang and lang != "en" and lang in LANGUAGE_NAMES:
+            user_prompt += f"\n\nREMINDER: All text values in your response MUST be in {LANGUAGE_NAMES[lang]}. Only JSON keys, ticker symbols, numbers, and dates should remain in English."
         output_model = self.get_output_model()
         for attempt in range(self.max_retries):
             try:
                 if on_thinking:
-                    response = await self.llm.complete_streaming(
-                        prompt=user_prompt,
-                        system_prompt=system_prompt,
-                        response_format=output_model,
-                        on_thinking=on_thinking,
+                    response = await asyncio.wait_for(
+                        self.llm.complete_streaming(
+                            prompt=user_prompt,
+                            system_prompt=system_prompt,
+                            response_format=output_model,
+                            on_thinking=on_thinking,
+                        ),
+                        timeout=180,
                     )
                 else:
-                    response = await self.llm.complete(
-                        prompt=user_prompt,
-                        system_prompt=system_prompt,
-                        response_format=output_model,
+                    response = await asyncio.wait_for(
+                        self.llm.complete(
+                            prompt=user_prompt,
+                            system_prompt=system_prompt,
+                            response_format=output_model,
+                        ),
+                        timeout=180,
                     )
                 data = json.loads(self._extract_json(response))
+                data = self._preprocess_output(data)
                 return output_model.model_validate(data)
+            except asyncio.TimeoutError:
+                if attempt == self.max_retries - 1:
+                    raise ValueError(f"Agent {self.name} timed out after {self.max_retries} attempts")
+                if on_retry:
+                    on_retry(attempt + 1, self.max_retries)
+                continue
             except (json.JSONDecodeError, ValidationError) as e:
                 if attempt == self.max_retries - 1:
                     raise ValueError(
                         f"Agent {self.name} failed after {self.max_retries} retries: {e}"
                     )
+                if on_retry:
+                    on_retry(attempt + 1, self.max_retries)
                 continue
         raise ValueError(f"Agent {self.name} failed unexpectedly")

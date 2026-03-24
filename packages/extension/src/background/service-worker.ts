@@ -5,7 +5,7 @@ import {
   saveReport,
   setGenerationState,
 } from '../lib/storage';
-import type { AgentResult, GenerationState, IdeaRequest, ThinkingChunk } from '../types';
+import type { AgentResult, GenerationState, IdeaRequest, ThinkingChunk, UserTicker } from '../types';
 
 interface Message {
   type: string;
@@ -18,6 +18,7 @@ interface GenerateMessage extends Message {
     selection_text: string;
     url: string;
     title: string;
+    user_tickers?: UserTicker[];
   };
 }
 
@@ -107,14 +108,19 @@ async function handleGenerate(payload: GenerateMessage['payload']): Promise<Gene
 
   const requestId = crypto.randomUUID();
   const completedStages: string[] = [];
+  let lastMainStage: string | null = null;
   let enrichmentAgents: string[] = [];
   const thinkingChunks: ThinkingChunk[] = [];
   const agentResults: AgentResult[] = [];
+  let thinkingDirty = false;
+  let thinkingFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const startedAt = new Date().toISOString();
 
   await setGenerationState({
     status: 'generating',
     request_id: requestId,
-    started_at: new Date().toISOString(),
+    started_at: startedAt,
     current_stage: 'starting',
     completed_stages: [],
     enrichment_agents: [],
@@ -122,12 +128,25 @@ async function handleGenerate(payload: GenerateMessage['payload']): Promise<Gene
     agent_results: [],
   });
 
+  const flushState = (currentStage: string) =>
+    setGenerationState({
+      status: 'generating',
+      request_id: requestId,
+      started_at: startedAt,
+      current_stage: currentStage,
+      completed_stages: [...completedStages],
+      enrichment_agents: [...enrichmentAgents],
+      thinking_chunks: [...thinkingChunks],
+      agent_results: [...agentResults],
+    });
+
   try {
     const request: IdeaRequest = {
       selection_text: payload.selection_text,
       url: payload.url,
       title: payload.title,
       user_settings: settings,
+      user_tickers: payload.user_tickers,
     };
 
     let report;
@@ -136,25 +155,20 @@ async function handleGenerate(payload: GenerateMessage['payload']): Promise<Gene
         request,
         async (stage: string) => {
           if (stage.startsWith('enrichment:') && !stage.startsWith('enrichment:risk') && !stage.startsWith('enrichment:synthesis')) {
+            if (lastMainStage && !completedStages.includes(lastMainStage)) completedStages.push(lastMainStage);
             enrichmentAgents = stage.slice('enrichment:'.length).split(',');
-            completedStages.push('enrichment');
+            lastMainStage = 'enrichment';
           } else if (stage.startsWith('agent_done:')) {
-            const agentId = stage.slice('agent_done:'.length);
-            completedStages.push(`agent:${agentId}`);
+            completedStages.push(`agent:${stage.slice('agent_done:'.length)}`);
           } else if (stage.startsWith('enrichment:')) {
             completedStages.push(stage);
-          } else {
+          } else if (stage.startsWith('retry:')) {
             completedStages.push(stage);
+          } else {
+            if (lastMainStage && !completedStages.includes(lastMainStage)) completedStages.push(lastMainStage);
+            lastMainStage = stage;
           }
-          await setGenerationState({
-            status: 'generating',
-            request_id: requestId,
-            current_stage: stage,
-            completed_stages: [...completedStages],
-            enrichment_agents: [...enrichmentAgents],
-            thinking_chunks: [...thinkingChunks],
-            agent_results: [...agentResults],
-          });
+          await flushState(stage);
         },
         settings.thinking_mode
           ? (agentId: string, phase: string, content: string) => {
@@ -164,31 +178,25 @@ async function handleGenerate(payload: GenerateMessage['payload']): Promise<Gene
               } else {
                 thinkingChunks.push({ agent_id: agentId, phase: phase as 'sequential' | 'parallel', content });
               }
-              setGenerationState({
-                status: 'generating',
-                request_id: requestId,
-                current_stage: 'thinking',
-                completed_stages: [...completedStages],
-                enrichment_agents: [...enrichmentAgents],
-                thinking_chunks: [...thinkingChunks],
-                agent_results: [...agentResults],
-              });
+              thinkingDirty = true;
+              if (!thinkingFlushTimer) {
+                thinkingFlushTimer = setTimeout(() => {
+                  thinkingFlushTimer = null;
+                  if (thinkingDirty) {
+                    thinkingDirty = false;
+                    flushState(lastMainStage || 'thinking');
+                  }
+                }, 500);
+              }
             }
           : undefined,
         (agentId: string, summary: Record<string, unknown>) => {
           agentResults.push({ agent_id: agentId, summary });
-          setGenerationState({
-            status: 'generating',
-            request_id: requestId,
-            current_stage: `result:${agentId}`,
-            completed_stages: [...completedStages],
-            enrichment_agents: [...enrichmentAgents],
-            thinking_chunks: [...thinkingChunks],
-            agent_results: [...agentResults],
-          });
+          flushState(`result:${agentId}`);
         },
       );
-    } catch {
+    } catch (e) {
+      console.warn('Stream failed, falling back:', e);
       report = await generateIdea(request);
     }
 
@@ -250,13 +258,15 @@ async function handleGenerateFromContent(
 
 let currentSelection: SelectionChangedMessage['payload'] | null = null;
 
-function handleSelectionChanged(payload: SelectionChangedMessage['payload']): { stored: boolean } {
+async function handleSelectionChanged(payload: SelectionChangedMessage['payload']): Promise<{ stored: boolean }> {
   currentSelection = payload;
+  await chrome.storage.local.set({ current_selection: { text: payload.text, url: payload.url, title: payload.title } });
   return { stored: true };
 }
 
-function handleSelectionCleared(): { cleared: boolean } {
+async function handleSelectionCleared(): Promise<{ cleared: boolean }> {
   currentSelection = null;
+  await chrome.storage.local.remove('current_selection');
   return { cleared: true };
 }
 
