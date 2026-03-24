@@ -229,5 +229,99 @@ async def search_tickers(req: TickerSearchRequest) -> list[TickerSearchResult]:
     matches = search_ticker(req.query, req.market_hint)
     return [TickerSearchResult(symbol=m.symbol, name=m.name, exchange=m.exchange) for m in matches[:5]]
 
+class FundamentalsResponse(BaseModel):
+    ticker: str
+    company_name: str
+    exchange: str
+    currency: str
+    metrics: dict
+    source: str
+    retrieved_at: str
+    data_unavailable: bool = False
+    error_message: str | None = None
+
+class FundamentalsBatchRequest(BaseModel):
+    tickers: list[str]
+
+class FundamentalsResponseWithCache(FundamentalsResponse):
+    cached: bool = False
+    cache_expires_at: str | None = None
+
+@app.get("/api/v1/fundamentals/{ticker}")
+async def get_fundamentals(ticker: str, refresh: bool = False) -> FundamentalsResponseWithCache:
+    from providers.fundamentals.service import get_fundamentals_service
+    service = get_fundamentals_service()
+    data = await service.get_fundamentals(ticker, refresh=refresh)
+    cache_info = await service.get_cache_info(ticker)
+    return FundamentalsResponseWithCache(
+        ticker=data.ticker,
+        company_name=data.company_name,
+        exchange=data.exchange,
+        currency=data.currency,
+        metrics=data.metrics.model_dump(),
+        source=data.source.value,
+        retrieved_at=data.retrieved_at.isoformat(),
+        data_unavailable=data.data_unavailable,
+        error_message=data.error_message,
+        cached=cache_info.get("cached", False) if cache_info else False,
+        cache_expires_at=cache_info.get("expires_at") if cache_info else None,
+    )
+
+@app.post("/api/v1/fundamentals/batch")
+async def get_fundamentals_batch(req: FundamentalsBatchRequest, refresh: bool = False) -> dict[str, FundamentalsResponse]:
+    from providers.fundamentals.service import get_fundamentals_service
+    service = get_fundamentals_service()
+    data = await service.get_fundamentals_batch(req.tickers, refresh=refresh)
+    return {
+        ticker: FundamentalsResponse(
+            ticker=d.ticker,
+            company_name=d.company_name,
+            exchange=d.exchange,
+            currency=d.currency,
+            metrics=d.metrics.model_dump(),
+            source=d.source.value,
+            retrieved_at=d.retrieved_at.isoformat(),
+            data_unavailable=d.data_unavailable,
+            error_message=d.error_message,
+        )
+        for ticker, d in data.items()
+    }
+
+@app.delete("/api/v1/fundamentals/cache")
+async def clear_fundamentals_cache():
+    from providers.fundamentals.service import get_fundamentals_service
+    service = get_fundamentals_service()
+    await service.clear_cache()
+    return {"cleared": True}
+
+class HistoricalMetricResponse(BaseModel):
+    period: str
+    period_date: str
+    value: float
+
+class HistoricalTrendResponse(BaseModel):
+    metric_name: str
+    data_points: list[HistoricalMetricResponse]
+
+@app.get("/api/v1/fundamentals/{ticker}/history")
+async def get_fundamentals_history(ticker: str, periods: int = 4) -> list[HistoricalTrendResponse]:
+    from providers.fundamentals.service import get_fundamentals_service
+    service = get_fundamentals_service()
+    trends = await service.get_historical(ticker, periods)
+    return [
+        HistoricalTrendResponse(
+            metric_name=t.metric_name,
+            data_points=[
+                HistoricalMetricResponse(
+                    period=p.period,
+                    period_date=p.period_date.isoformat(),
+                    value=p.value,
+                )
+                for p in t.data_points
+            ],
+        )
+        for t in trends
+    ]
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
