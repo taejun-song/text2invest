@@ -323,5 +323,146 @@ async def get_fundamentals_history(ticker: str, periods: int = 4) -> list[Histor
         for t in trends
     ]
 
+class TechnicalIndicatorsResponse(BaseModel):
+    ticker: str
+    current_price: float | None = None
+    ma_50: float | None = None
+    ma_200: float | None = None
+    rsi_14: float | None = None
+    price_change_1w: float | None = None
+    price_change_1m: float | None = None
+    price_change_3m: float | None = None
+    price_change_ytd: float | None = None
+    volume_avg_10d: int | None = None
+    retrieved_at: str
+    data_source: str = "yfinance"
+
+@app.get("/api/v1/technicals/{ticker}")
+async def get_technicals(ticker: str, refresh: bool = False) -> TechnicalIndicatorsResponse:
+    from providers.fundamentals.service import get_fundamentals_service
+    service = get_fundamentals_service()
+    data = await service.get_technical_indicators(ticker, refresh=refresh)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"Technical indicators not available for {ticker}")
+    return TechnicalIndicatorsResponse(
+        ticker=data.ticker,
+        current_price=data.current_price,
+        ma_50=data.ma_50,
+        ma_200=data.ma_200,
+        rsi_14=data.rsi_14,
+        price_change_1w=data.price_change_1w,
+        price_change_1m=data.price_change_1m,
+        price_change_3m=data.price_change_3m,
+        price_change_ytd=data.price_change_ytd,
+        volume_avg_10d=data.volume_avg_10d,
+        retrieved_at=data.retrieved_at.isoformat(),
+        data_source=data.data_source,
+    )
+
+class ValuationComparisonResponse(BaseModel):
+    ticker: str
+    sector: str = ""
+    pe_ratio: float | None = None
+    sector_pe_avg: float | None = None
+    pe_vs_sector: str | None = None
+    forward_pe: float | None = None
+
+class QuantitativeReportResponse(BaseModel):
+    ticker: str
+    company_name: str = ""
+    fundamentals: dict | None = None
+    technicals: TechnicalIndicatorsResponse | None = None
+    valuation: ValuationComparisonResponse | None = None
+    data_sources: list[str] = []
+    retrieved_at: str
+
+@app.get("/api/v1/quantitative/{ticker}")
+async def get_quantitative(ticker: str) -> QuantitativeReportResponse:
+    from providers.fundamentals.service import get_fundamentals_service
+    service = get_fundamentals_service()
+    report = await service.get_quantitative_report(ticker)
+    technicals_resp = None
+    if report.technicals:
+        technicals_resp = TechnicalIndicatorsResponse(
+            ticker=report.technicals.ticker,
+            current_price=report.technicals.current_price,
+            ma_50=report.technicals.ma_50,
+            ma_200=report.technicals.ma_200,
+            rsi_14=report.technicals.rsi_14,
+            price_change_1w=report.technicals.price_change_1w,
+            price_change_1m=report.technicals.price_change_1m,
+            price_change_3m=report.technicals.price_change_3m,
+            price_change_ytd=report.technicals.price_change_ytd,
+            volume_avg_10d=report.technicals.volume_avg_10d,
+            retrieved_at=report.technicals.retrieved_at.isoformat(),
+            data_source=report.technicals.data_source,
+        )
+    valuation_resp = None
+    if report.valuation:
+        valuation_resp = ValuationComparisonResponse(
+            ticker=report.valuation.ticker,
+            sector=report.valuation.sector,
+            pe_ratio=report.valuation.pe_ratio,
+            sector_pe_avg=report.valuation.sector_pe_avg,
+            pe_vs_sector=report.valuation.pe_vs_sector,
+            forward_pe=report.valuation.forward_pe,
+        )
+    return QuantitativeReportResponse(
+        ticker=report.ticker,
+        company_name=report.company_name,
+        fundamentals=report.fundamentals.model_dump() if report.fundamentals else None,
+        technicals=technicals_resp,
+        valuation=valuation_resp,
+        data_sources=report.data_sources,
+        retrieved_at=report.retrieved_at.isoformat(),
+    )
+
+class QuantitativeBatchRequest(BaseModel):
+    tickers: list[str]
+
+@app.post("/api/v1/quantitative/batch")
+async def get_quantitative_batch(req: QuantitativeBatchRequest) -> dict[str, QuantitativeReportResponse]:
+    from providers.fundamentals.service import get_fundamentals_service
+    service = get_fundamentals_service()
+    reports = await service.get_quantitative_batch(req.tickers)
+    result = {}
+    for ticker, report in reports.items():
+        technicals_resp = None
+        if report.technicals:
+            technicals_resp = TechnicalIndicatorsResponse(
+                ticker=report.technicals.ticker,
+                current_price=report.technicals.current_price,
+                ma_50=report.technicals.ma_50,
+                ma_200=report.technicals.ma_200,
+                rsi_14=report.technicals.rsi_14,
+                price_change_1w=report.technicals.price_change_1w,
+                price_change_1m=report.technicals.price_change_1m,
+                price_change_3m=report.technicals.price_change_3m,
+                price_change_ytd=report.technicals.price_change_ytd,
+                volume_avg_10d=report.technicals.volume_avg_10d,
+                retrieved_at=report.technicals.retrieved_at.isoformat(),
+                data_source=report.technicals.data_source,
+            )
+        valuation_resp = None
+        if report.valuation:
+            valuation_resp = ValuationComparisonResponse(
+                ticker=report.valuation.ticker,
+                sector=report.valuation.sector,
+                pe_ratio=report.valuation.pe_ratio,
+                sector_pe_avg=report.valuation.sector_pe_avg,
+                pe_vs_sector=report.valuation.pe_vs_sector,
+                forward_pe=report.valuation.forward_pe,
+            )
+        result[ticker] = QuantitativeReportResponse(
+            ticker=report.ticker,
+            company_name=report.company_name,
+            fundamentals=report.fundamentals.model_dump() if report.fundamentals else None,
+            technicals=technicals_resp,
+            valuation=valuation_resp,
+            data_sources=report.data_sources,
+            retrieved_at=report.retrieved_at.isoformat(),
+        )
+    return result
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

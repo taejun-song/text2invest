@@ -48,6 +48,7 @@ class FundamentalsSnapshot(BaseModel):
     currency: str = Field("USD", description="Native currency code")
     metrics: list[FinancialMetric] = Field(default_factory=list, description="Key financial metrics")
     fundamental_data: dict | None = Field(None, description="Structured fundamental data from provider")
+    technical_indicators: dict | None = Field(None, description="Technical analysis data")
     historical_trends: list[dict] = Field(default_factory=list, description="Historical trend data")
     data_source: DataSource = Field(..., description="How this data was obtained")
     retrieved_at: datetime = Field(..., description="When data was retrieved")

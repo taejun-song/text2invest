@@ -3,7 +3,7 @@ import logging
 import aiosqlite
 from datetime import datetime, timedelta
 from pathlib import Path
-from models.fundamentals import DataSourceType, FundamentalData, FundamentalMetrics, HistoricalTrend, HistoricalMetric
+from models.fundamentals import DataSourceType, FundamentalData, FundamentalMetrics, HistoricalTrend, HistoricalMetric, TechnicalIndicators
 
 logger = logging.getLogger(__name__)
 DEFAULT_TTL_HOURS = 24
@@ -40,6 +40,14 @@ class FundamentalsCache:
                         PRIMARY KEY (ticker, metric_name)
                     )
                 """)
+                await db.execute("""
+                    CREATE TABLE IF NOT EXISTS technical_cache (
+                        ticker TEXT PRIMARY KEY,
+                        data TEXT NOT NULL,
+                        fetched_at TEXT NOT NULL,
+                        expires_at TEXT NOT NULL
+                    )
+                """)
                 await db.commit()
             self._initialized = True
         except Exception as e:
@@ -69,6 +77,14 @@ class FundamentalsCache:
                         fetched_at TEXT NOT NULL,
                         expires_at TEXT NOT NULL,
                         PRIMARY KEY (ticker, metric_name)
+                    )
+                """)
+                await db.execute("""
+                    CREATE TABLE technical_cache (
+                        ticker TEXT PRIMARY KEY,
+                        data TEXT NOT NULL,
+                        fetched_at TEXT NOT NULL,
+                        expires_at TEXT NOT NULL
                     )
                 """)
                 await db.commit()
@@ -233,6 +249,44 @@ class FundamentalsCache:
             logger.debug(f"Cached historical for {ticker}")
         except Exception as e:
             logger.warning(f"Historical cache write failed for {ticker}: {e}")
+
+    async def get_technical_cached(self, ticker: str) -> TechnicalIndicators | None:
+        await self._ensure_initialized()
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                cursor = await db.execute(
+                    "SELECT data, expires_at FROM technical_cache WHERE ticker = ?",
+                    (ticker.upper(),),
+                )
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+                data_json, expires_at = row
+                if datetime.now() > datetime.fromisoformat(expires_at):
+                    return None
+                data_dict = json.loads(data_json)
+                return TechnicalIndicators(**data_dict)
+        except Exception as e:
+            logger.warning(f"Technical cache read failed for {ticker}: {e}")
+            return None
+
+    async def set_technical_cached(self, ticker: str, data: TechnicalIndicators, ttl_hours: int = 1):
+        await self._ensure_initialized()
+        try:
+            fetched_at = datetime.now().isoformat()
+            expires_at = (datetime.now() + timedelta(hours=ttl_hours)).isoformat()
+            data_dict = data.model_dump()
+            data_dict["retrieved_at"] = data.retrieved_at.isoformat()
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute(
+                    """INSERT OR REPLACE INTO technical_cache (ticker, data, fetched_at, expires_at)
+                       VALUES (?, ?, ?, ?)""",
+                    (ticker.upper(), json.dumps(data_dict), fetched_at, expires_at),
+                )
+                await db.commit()
+            logger.debug(f"Cached technical for {ticker}")
+        except Exception as e:
+            logger.warning(f"Technical cache write failed for {ticker}: {e}")
 
 
 _cache: FundamentalsCache | None = None

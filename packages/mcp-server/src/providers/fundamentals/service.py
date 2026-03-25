@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime
-from models.fundamentals import DataSourceType, FundamentalData, HistoricalTrend
+from models.fundamentals import DataSourceType, FundamentalData, HistoricalTrend, TechnicalIndicators, QuantitativeReport, ValuationComparison
 from providers.fundamentals.base import FundamentalsProvider
 from providers.fundamentals.yfinance_provider import YFinanceProvider
 from providers.fundamentals.investpy_provider import InvestpyProvider
@@ -133,6 +133,99 @@ class FundamentalsService:
             except Exception as e:
                 logger.warning(f"{provider.name} historical error for {ticker}: {e}")
         return []
+
+    async def get_technical_indicators(self, ticker: str, refresh: bool = False) -> TechnicalIndicators | None:
+        ticker = ticker.upper().strip()
+        cache = self._get_cache()
+        if self.use_cache and cache and not refresh:
+            try:
+                cached = await cache.get_technical_cached(ticker)
+                if cached:
+                    logger.info(f"Technical cache hit for {ticker}")
+                    return cached
+            except Exception as e:
+                logger.warning(f"Technical cache lookup failed: {e}")
+        yf_provider = self.providers[0]
+        if hasattr(yf_provider, "get_technical_indicators"):
+            try:
+                result = await asyncio.wait_for(
+                    yf_provider.get_technical_indicators(ticker),
+                    timeout=yf_provider.timeout + 5,
+                )
+                if result:
+                    logger.info(f"Got technical for {ticker}")
+                    if self.use_cache and cache:
+                        try:
+                            await cache.set_technical_cached(ticker, result, ttl_hours=1)
+                        except Exception as e:
+                            logger.warning(f"Technical cache write failed: {e}")
+                    return result
+            except asyncio.TimeoutError:
+                logger.warning(f"Technical indicators timed out for {ticker}")
+            except Exception as e:
+                logger.warning(f"Technical indicators error for {ticker}: {e}")
+        return None
+
+    async def get_valuation_comparison(self, ticker: str) -> ValuationComparison | None:
+        ticker = ticker.upper().strip()
+        yf_provider = self.providers[0]
+        if hasattr(yf_provider, "get_sector_info"):
+            try:
+                sector_info = await yf_provider.get_sector_info(ticker)
+                fundamentals = await self.get_fundamentals(ticker)
+                if sector_info and fundamentals and not fundamentals.data_unavailable:
+                    pe = fundamentals.metrics.pe_ratio
+                    sector_pe = sector_info.get("sector_pe")
+                    pe_vs = None
+                    if pe and sector_pe:
+                        if pe > sector_pe * 1.05:
+                            pe_vs = "above"
+                        elif pe < sector_pe * 0.95:
+                            pe_vs = "below"
+                        else:
+                            pe_vs = "at"
+                    return ValuationComparison(
+                        ticker=ticker,
+                        sector=sector_info.get("sector", ""),
+                        pe_ratio=pe,
+                        sector_pe_avg=sector_pe,
+                        pe_vs_sector=pe_vs,
+                        forward_pe=fundamentals.metrics.forward_pe,
+                    )
+            except Exception as e:
+                logger.warning(f"Valuation comparison error for {ticker}: {e}")
+        return None
+
+    async def get_quantitative_report(self, ticker: str) -> QuantitativeReport:
+        ticker = ticker.upper().strip()
+        fundamentals = await self.get_fundamentals(ticker)
+        technicals = await self.get_technical_indicators(ticker)
+        valuation = await self.get_valuation_comparison(ticker)
+        sources = []
+        if fundamentals and not fundamentals.data_unavailable:
+            sources.append(fundamentals.source.value)
+        if technicals:
+            sources.append(technicals.data_source)
+        return QuantitativeReport(
+            ticker=ticker,
+            company_name=fundamentals.company_name if fundamentals else "",
+            fundamentals=fundamentals.metrics if fundamentals else None,
+            technicals=technicals,
+            valuation=valuation,
+            data_sources=list(set(sources)),
+            retrieved_at=datetime.now(),
+        )
+
+    async def get_quantitative_batch(self, tickers: list[str]) -> dict[str, QuantitativeReport]:
+        tasks = [self.get_quantitative_report(t) for t in tickers]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        output: dict[str, QuantitativeReport] = {}
+        for ticker, result in zip(tickers, results):
+            if isinstance(result, Exception):
+                output[ticker] = QuantitativeReport(ticker=ticker, data_sources=[])
+            else:
+                output[ticker] = result
+        return output
 
 
 _service: FundamentalsService | None = None

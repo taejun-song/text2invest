@@ -57,6 +57,28 @@ import type {
 export type { AgentConfig, CommunicationLog, CrossReferenceAnalysis, FundamentalsSnapshot, MacroContext, NewsItem };
 export type { AgentMessage, Divergence, FinancialMetric } from './enriched';
 
+export interface QuantitativeEntry {
+  ticker: string;
+  company_name: string;
+  fundamentals: {
+    pe_ratio?: number | null;
+    market_cap?: string | null;
+    revenue?: string | null;
+    profit_margin?: number | null;
+    dividend_yield?: number | null;
+    eps?: number | null;
+  };
+  technicals?: {
+    current_price?: number | null;
+    ma_50?: number | null;
+    ma_200?: number | null;
+    rsi_14?: number | null;
+    price_change_1w?: number | null;
+    price_change_1m?: number | null;
+    price_change_3m?: number | null;
+  } | null;
+}
+
 export interface IdeaReport {
   id: string;
   created_at: string;
@@ -70,8 +92,9 @@ export interface IdeaReport {
   risks: string[];
   counter_thesis: string;
   horizon: 'short' | 'medium' | 'long';
-  confidence_score: number;
-  confidence_explanation: string;
+  confidence_score?: number | null;
+  confidence_explanation?: string | null;
+  quantitative_data?: QuantitativeEntry[];
   limitations: string[];
   provider_meta: ProviderMeta;
   news_context?: NewsItem[] | null;
