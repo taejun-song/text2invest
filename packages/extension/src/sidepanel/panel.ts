@@ -1,7 +1,21 @@
 import type { AgentResult, ChatMessage, Evaluation, GenerationState, IdeaReport, NewsItem, FundamentalsSnapshot, AgentMessage, ThinkingChunk, Recommendation, RelatedTicker, UserTicker, QuantitativeEntry } from '../types';
-import { getReports, getEvaluations, getSettings, searchReports, saveEvaluation } from '../lib/storage';
+import { getReports, getEvaluations, getSettings, saveSettings, searchReports, saveEvaluation } from '../lib/storage';
 import { chatWithReport, searchTickers, TickerSearchResult } from '../lib/api';
 import { generateMarkdown, generateJSON, downloadFile } from '../lib/export';
+
+const LANGUAGE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'auto', label: 'Auto-detect' },
+  { value: 'en', label: 'English' },
+  { value: 'ko', label: 'Korean' },
+  { value: 'ja', label: 'Japanese' },
+  { value: 'zh', label: 'Chinese' },
+  { value: 'es', label: 'Spanish' },
+  { value: 'fr', label: 'French' },
+  { value: 'de', label: 'German' },
+  { value: 'pt', label: 'Portuguese' },
+  { value: 'hi', label: 'Hindi' },
+  { value: 'ar', label: 'Arabic' },
+];
 
 interface TickerChip {
   symbol: string;
@@ -36,6 +50,7 @@ class PanelController {
   private selectedSuggestionIndex = -1;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private suggestionsEl: HTMLElement | null = null;
+  private selectedLanguage: string = 'auto';
 
   constructor() {
     this.contentEl = document.getElementById('content')!;
@@ -95,6 +110,9 @@ class PanelController {
           .ticker-suggestion-name { font-size: 12px; color: #6b7280; flex: 1; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
           .ticker-suggestion-exchange { font-size: 11px; color: #9ca3af; }
           .ticker-input-wrapper { position: relative; }
+          .language-row { display: flex; gap: 8px; align-items: center; }
+          .language-select { flex: 0 0 auto; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: #fff; cursor: pointer; min-width: 120px; }
+          .language-select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
         </style>
         <div class="selection-preview" id="selection-preview"></div>
         <div class="ticker-label">Add tickers (optional)</div>
@@ -104,7 +122,12 @@ class PanelController {
           </div>
           <div class="ticker-suggestions hidden" id="ticker-suggestions"></div>
         </div>
-        <button class="generate-btn" id="generate-btn">Generate Report</button>
+        <div class="language-row">
+          <select class="language-select" id="language-select">
+            ${LANGUAGE_OPTIONS.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('')}
+          </select>
+          <button class="generate-btn" id="generate-btn">Generate Report</button>
+        </div>
       `;
       this.contentEl.insertBefore(container, this.contentEl.firstChild);
     }
@@ -114,6 +137,7 @@ class PanelController {
     this.tickerChipsEl = document.getElementById('ticker-chips');
     this.bindTickerInputEvents();
     this.bindGenerateButton();
+    this.bindLanguagePicker();
     container.classList.remove('hidden');
   }
 
@@ -222,6 +246,24 @@ class PanelController {
   private bindGenerateButton(): void {
     const btn = document.getElementById('generate-btn');
     btn?.addEventListener('click', () => this.triggerGenerate());
+  }
+
+  private async bindLanguagePicker(): Promise<void> {
+    const select = document.getElementById('language-select') as HTMLSelectElement;
+    if (!select) return;
+    const settings = await getSettings();
+    if (settings?.output_language) {
+      select.value = settings.output_language;
+      this.selectedLanguage = settings.output_language;
+    }
+    select.addEventListener('change', async () => {
+      this.selectedLanguage = select.value;
+      const currentSettings = await getSettings();
+      if (currentSettings) {
+        currentSettings.output_language = select.value;
+        await saveSettings(currentSettings);
+      }
+    });
   }
 
   private addTickerFromInput(): void {
