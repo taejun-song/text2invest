@@ -55,3 +55,38 @@ class CachedFundamental(BaseModel):
     source: DataSourceType = Field(..., description="Original data source")
     fetched_at: datetime = Field(..., description="When originally fetched")
     expires_at: datetime = Field(..., description="Cache expiration time")
+
+
+class TechnicalIndicators(BaseModel):
+    ticker: str = Field(..., description="Stock ticker symbol")
+    current_price: float | None = Field(None, description="Current stock price")
+    ma_50: float | None = Field(None, description="50-day simple moving average")
+    ma_200: float | None = Field(None, description="200-day simple moving average")
+    rsi_14: float | None = Field(None, ge=0, le=100, description="14-day RSI (0-100)")
+    price_change_1w: float | None = Field(None, description="1-week price change as decimal")
+    price_change_1m: float | None = Field(None, description="1-month price change as decimal")
+    price_change_3m: float | None = Field(None, description="3-month price change as decimal")
+    price_change_ytd: float | None = Field(None, description="Year-to-date price change as decimal")
+    volume_avg_10d: int | None = Field(None, description="10-day average volume")
+    retrieved_at: datetime = Field(default_factory=datetime.now, description="When data was retrieved")
+    data_source: str = Field("yfinance", description="Data source used")
+
+
+class ValuationComparison(BaseModel):
+    ticker: str = Field(..., description="Stock ticker symbol")
+    sector: str = Field("", description="Sector name")
+    pe_ratio: float | None = Field(None, description="Stock P/E ratio")
+    sector_pe_avg: float | None = Field(None, description="Sector average P/E ratio")
+    pe_vs_sector: str | None = Field(None, description="above, below, or at")
+    forward_pe: float | None = Field(None, description="Forward P/E ratio")
+    sector_forward_pe_avg: float | None = Field(None, description="Sector average forward P/E")
+
+
+class QuantitativeReport(BaseModel):
+    ticker: str = Field(..., description="Stock ticker symbol")
+    company_name: str = Field("", description="Full company name")
+    fundamentals: FundamentalMetrics = Field(default_factory=FundamentalMetrics)
+    technicals: TechnicalIndicators | None = Field(None, description="Technical indicators")
+    valuation: ValuationComparison | None = Field(None, description="Valuation comparison")
+    data_sources: list[str] = Field(default_factory=list, description="Data sources used")
+    retrieved_at: datetime = Field(default_factory=datetime.now, description="When data was retrieved")

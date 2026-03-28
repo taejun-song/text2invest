@@ -1,7 +1,21 @@
-import type { AgentResult, ChatMessage, Evaluation, GenerationState, IdeaReport, NewsItem, FundamentalsSnapshot, AgentMessage, ThinkingChunk, Recommendation, RelatedTicker, UserTicker } from '../types';
-import { getReports, getEvaluations, getSettings, searchReports, saveEvaluation } from '../lib/storage';
+import type { AgentResult, ChatMessage, Evaluation, GenerationState, IdeaReport, NewsItem, FundamentalsSnapshot, AgentMessage, ThinkingChunk, Recommendation, RelatedTicker, UserTicker, QuantitativeEntry } from '../types';
+import { getReports, getEvaluations, getSettings, saveSettings, searchReports, saveEvaluation } from '../lib/storage';
 import { chatWithReport, searchTickers, TickerSearchResult } from '../lib/api';
 import { generateMarkdown, generateJSON, downloadFile } from '../lib/export';
+
+const LANGUAGE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'auto', label: 'Auto-detect' },
+  { value: 'en', label: 'English' },
+  { value: 'ko', label: 'Korean' },
+  { value: 'ja', label: 'Japanese' },
+  { value: 'zh', label: 'Chinese' },
+  { value: 'es', label: 'Spanish' },
+  { value: 'fr', label: 'French' },
+  { value: 'de', label: 'German' },
+  { value: 'pt', label: 'Portuguese' },
+  { value: 'hi', label: 'Hindi' },
+  { value: 'ar', label: 'Arabic' },
+];
 
 interface TickerChip {
   symbol: string;
@@ -36,6 +50,7 @@ class PanelController {
   private selectedSuggestionIndex = -1;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private suggestionsEl: HTMLElement | null = null;
+  private selectedLanguage: string = 'auto';
 
   constructor() {
     this.contentEl = document.getElementById('content')!;
@@ -95,6 +110,9 @@ class PanelController {
           .ticker-suggestion-name { font-size: 12px; color: #6b7280; flex: 1; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
           .ticker-suggestion-exchange { font-size: 11px; color: #9ca3af; }
           .ticker-input-wrapper { position: relative; }
+          .language-row { display: flex; gap: 8px; align-items: center; }
+          .language-select { flex: 0 0 auto; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: #fff; cursor: pointer; min-width: 120px; }
+          .language-select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
         </style>
         <div class="selection-preview" id="selection-preview"></div>
         <div class="ticker-label">Add tickers (optional)</div>
@@ -104,7 +122,12 @@ class PanelController {
           </div>
           <div class="ticker-suggestions hidden" id="ticker-suggestions"></div>
         </div>
-        <button class="generate-btn" id="generate-btn">Generate Report</button>
+        <div class="language-row">
+          <select class="language-select" id="language-select">
+            ${LANGUAGE_OPTIONS.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('')}
+          </select>
+          <button class="generate-btn" id="generate-btn">Generate Report</button>
+        </div>
       `;
       this.contentEl.insertBefore(container, this.contentEl.firstChild);
     }
@@ -114,6 +137,7 @@ class PanelController {
     this.tickerChipsEl = document.getElementById('ticker-chips');
     this.bindTickerInputEvents();
     this.bindGenerateButton();
+    this.bindLanguagePicker();
     container.classList.remove('hidden');
   }
 
@@ -222,6 +246,24 @@ class PanelController {
   private bindGenerateButton(): void {
     const btn = document.getElementById('generate-btn');
     btn?.addEventListener('click', () => this.triggerGenerate());
+  }
+
+  private async bindLanguagePicker(): Promise<void> {
+    const select = document.getElementById('language-select') as HTMLSelectElement;
+    if (!select) return;
+    const settings = await getSettings();
+    if (settings?.output_language) {
+      select.value = settings.output_language;
+      this.selectedLanguage = settings.output_language;
+    }
+    select.addEventListener('change', async () => {
+      this.selectedLanguage = select.value;
+      const currentSettings = await getSettings();
+      if (currentSettings) {
+        currentSettings.output_language = select.value;
+        await saveSettings(currentSettings);
+      }
+    });
   }
 
   private addTickerFromInput(): void {
@@ -836,7 +878,8 @@ class PanelController {
       ${this.renderSection('Catalysts', this.renderList(report.catalysts))}
       ${this.renderSection('Risks', this.renderList(report.risks, 'risks'))}
       ${this.renderSection('Counter-Thesis', `<div class="counter-thesis">${this.escapeHtml(report.counter_thesis)}</div>`)}
-      ${this.renderSection('Confidence', this.renderConfidence(report))}
+      ${report.quantitative_data?.length ? this.renderSection('Quantitative Metrics', this.renderQuantitativeData(report.quantitative_data)) : ''}
+      ${report.confidence_score != null ? this.renderSection('Confidence', this.renderConfidence(report), true) : ''}
       ${this.renderSection('Time Horizon', `<span class="horizon">${report.horizon}</span>`)}
       ${this.renderSection('Limitations', this.renderList(report.limitations))}
       ${report.news_context?.length ? this.renderSection('News Context', this.renderNewsContext(report.news_context, report.agent_attributions), false) : ''}
@@ -992,6 +1035,7 @@ class PanelController {
   }
 
   private renderConfidence(report: IdeaReport): string {
+    if (report.confidence_score == null) return '<p>No confidence score available</p>';
     const score = Math.round(report.confidence_score * 100);
     return `
       <div class="confidence-bar">
@@ -1000,8 +1044,43 @@ class PanelController {
         </div>
         <div class="confidence-score">${score}%</div>
       </div>
-      <div class="confidence-explanation">${this.escapeHtml(report.confidence_explanation)}</div>
+      ${report.confidence_explanation ? `<div class="confidence-explanation">${this.escapeHtml(report.confidence_explanation)}</div>` : ''}
     `;
+  }
+
+  private renderQuantitativeData(data: QuantitativeEntry[]): string {
+    if (!data.length) return '<p>No quantitative data available</p>';
+    return data.map((entry) => {
+      const f = entry.fundamentals;
+      const t = entry.technicals;
+      let html = `<div class="quantitative-card">
+        <div class="quantitative-header"><strong>${this.escapeHtml(entry.ticker)}</strong> - ${this.escapeHtml(entry.company_name)}</div>
+        <div class="quantitative-section"><strong>Fundamentals</strong><table class="metrics-table"><tbody>`;
+      if (f.pe_ratio != null) html += `<tr><td>P/E Ratio</td><td>${f.pe_ratio.toFixed(2)}</td></tr>`;
+      if (f.market_cap) html += `<tr><td>Market Cap</td><td>${this.escapeHtml(f.market_cap)}</td></tr>`;
+      if (f.revenue) html += `<tr><td>Revenue</td><td>${this.escapeHtml(f.revenue)}</td></tr>`;
+      if (f.eps != null) html += `<tr><td>EPS</td><td>${f.eps.toFixed(2)}</td></tr>`;
+      if (f.profit_margin != null) html += `<tr><td>Profit Margin</td><td>${(f.profit_margin * 100).toFixed(1)}%</td></tr>`;
+      if (f.dividend_yield != null) html += `<tr><td>Dividend Yield</td><td>${(f.dividend_yield * 100).toFixed(2)}%</td></tr>`;
+      html += '</tbody></table></div>';
+      if (t) {
+        html += '<div class="quantitative-section"><strong>Technical Indicators</strong><table class="metrics-table"><tbody>';
+        if (t.current_price != null) html += `<tr><td>Current Price</td><td>$${t.current_price.toFixed(2)}</td></tr>`;
+        if (t.ma_50 != null) html += `<tr><td>50-Day MA</td><td>$${t.ma_50.toFixed(2)}</td></tr>`;
+        if (t.ma_200 != null) html += `<tr><td>200-Day MA</td><td>$${t.ma_200.toFixed(2)}</td></tr>`;
+        if (t.rsi_14 != null) {
+          const rsiClass = t.rsi_14 > 70 ? 'rsi-overbought' : t.rsi_14 < 30 ? 'rsi-oversold' : '';
+          const rsiLabel = t.rsi_14 > 70 ? ' (Overbought)' : t.rsi_14 < 30 ? ' (Oversold)' : '';
+          html += `<tr><td>RSI (14)</td><td class="${rsiClass}">${t.rsi_14.toFixed(1)}${rsiLabel}</td></tr>`;
+        }
+        if (t.price_change_1w != null) html += `<tr><td>1-Week Change</td><td class="${t.price_change_1w >= 0 ? 'change-positive' : 'change-negative'}">${(t.price_change_1w * 100).toFixed(2)}%</td></tr>`;
+        if (t.price_change_1m != null) html += `<tr><td>1-Month Change</td><td class="${t.price_change_1m >= 0 ? 'change-positive' : 'change-negative'}">${(t.price_change_1m * 100).toFixed(2)}%</td></tr>`;
+        if (t.price_change_3m != null) html += `<tr><td>3-Month Change</td><td class="${t.price_change_3m >= 0 ? 'change-positive' : 'change-negative'}">${(t.price_change_3m * 100).toFixed(2)}%</td></tr>`;
+        html += '</tbody></table></div>';
+      }
+      html += '</div>';
+      return html;
+    }).join('');
   }
 
   private renderProviderMeta(meta: IdeaReport['provider_meta']): string {

@@ -73,6 +73,8 @@ class FundamentalsAgent(CollaborativeAgent):
                 metrics.append(FinancialMetric(name="Profit Margin", value=format_percentage(m.profit_margin) or "N/A"))
             historical = await service.get_historical(ticker)
             historical_dicts = [{"metric_name": t.metric_name, "data_points": [{"period": p.period, "value": p.value} for p in t.data_points]} for t in historical]
+            technicals = await service.get_technical_indicators(ticker)
+            technical_dict = technicals.model_dump() if technicals else None
             snapshots.append(FundamentalsSnapshot(
                 ticker=ticker,
                 company_name=fund_data.company_name,
@@ -80,6 +82,7 @@ class FundamentalsAgent(CollaborativeAgent):
                 currency=fund_data.currency,
                 metrics=metrics,
                 fundamental_data=fund_data.model_dump(),
+                technical_indicators=technical_dict,
                 historical_trends=historical_dicts,
                 data_source=DataSource.WEB_SEARCH,
                 retrieved_at=datetime.now(),

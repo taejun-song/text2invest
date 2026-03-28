@@ -20,16 +20,16 @@ from models.idea_report import (
 
 
 SUMMARY_LABELS = {
-    "en": {"tickers": "Tickers", "confidence": "Confidence"},
-    "ko": {"tickers": "종목", "confidence": "신뢰도"},
-    "ja": {"tickers": "銘柄", "confidence": "信頼度"},
-    "zh": {"tickers": "股票代码", "confidence": "置信度"},
-    "es": {"tickers": "Valores", "confidence": "Confianza"},
-    "fr": {"tickers": "Titres", "confidence": "Confiance"},
-    "de": {"tickers": "Wertpapiere", "confidence": "Konfidenz"},
-    "pt": {"tickers": "Ativos", "confidence": "Confianca"},
-    "hi": {"tickers": "टिकर", "confidence": "विश्वास"},
-    "ar": {"tickers": "الأسهم", "confidence": "الثقة"},
+    "en": {"tickers": "Tickers"},
+    "ko": {"tickers": "종목"},
+    "ja": {"tickers": "銘柄"},
+    "zh": {"tickers": "股票代码"},
+    "es": {"tickers": "Valores"},
+    "fr": {"tickers": "Titres"},
+    "de": {"tickers": "Wertpapiere"},
+    "pt": {"tickers": "Ativos"},
+    "hi": {"tickers": "टिकर"},
+    "ar": {"tickers": "الأسهم"},
 }
 
 class FormatterAgent:
@@ -91,9 +91,7 @@ class FormatterAgent:
             for q in supporting_quotes
         ]
 
-        executive_summary = self._generate_executive_summary(
-            thesis, formatted_tickers, confidence_score
-        )
+        executive_summary = self._generate_executive_summary(thesis, formatted_tickers)
 
         # Build enrichment fields
         news_context = None
@@ -124,6 +122,7 @@ class FormatterAgent:
                 elif hasattr(macro_output, "model_dump"):
                     macro_context = macro_output.model_dump()
 
+        quantitative_data = self._build_quantitative_data(fundamentals_summary)
         comm_log_data = None
         if communication_log:
             comm_log_data = communication_log.model_dump()
@@ -191,8 +190,9 @@ class FormatterAgent:
             risks=risks,
             counter_thesis=counter_thesis,
             horizon=Horizon(horizon),
-            confidence_score=confidence_score,
-            confidence_explanation=confidence_explanation,
+            confidence_score=None,
+            confidence_explanation=None,
+            quantitative_data=quantitative_data,
             limitations=limitations,
             provider_meta=ProviderMeta(
                 provider=self.settings.provider,
@@ -212,9 +212,7 @@ class FormatterAgent:
             inferred_tickers=formatted_inferred,
         )
 
-    def _generate_executive_summary(
-        self, thesis: str, tickers: list[Ticker], confidence: float
-    ) -> list[str]:
+    def _generate_executive_summary(self, thesis: str, tickers: list[Ticker]) -> list[str]:
         lang = self.settings.output_language
         if not lang or lang == "auto":
             lang = "en"
@@ -223,7 +221,41 @@ class FormatterAgent:
         if tickers:
             ticker_str = ", ".join(t.symbol for t in tickers[:3])
             summary.append(f"{labels['tickers']}: {ticker_str}")
-        thesis_short = thesis[:150] + "..." if len(thesis) > 150 else thesis
+        thesis_short = thesis[:200] + "..." if len(thesis) > 200 else thesis
         summary.append(thesis_short)
-        summary.append(f"{labels['confidence']}: {confidence:.0%}")
         return summary[:3]
+
+    def _build_quantitative_data(self, fundamentals_summary: list | None) -> list:
+        if not fundamentals_summary:
+            return []
+        quantitative = []
+        for snap in fundamentals_summary:
+            ticker = snap.get("ticker", "")
+            tech = snap.get("technical_indicators")
+            fund = snap.get("fundamental_data", {})
+            metrics = fund.get("metrics", {}) if fund else {}
+            entry = {
+                "ticker": ticker,
+                "company_name": snap.get("company_name", ""),
+                "fundamentals": {
+                    "pe_ratio": metrics.get("pe_ratio"),
+                    "market_cap": metrics.get("market_cap"),
+                    "revenue": metrics.get("revenue"),
+                    "profit_margin": metrics.get("profit_margin"),
+                    "dividend_yield": metrics.get("dividend_yield"),
+                    "eps": metrics.get("eps"),
+                },
+                "technicals": None,
+            }
+            if tech:
+                entry["technicals"] = {
+                    "current_price": tech.get("current_price"),
+                    "ma_50": tech.get("ma_50"),
+                    "ma_200": tech.get("ma_200"),
+                    "rsi_14": tech.get("rsi_14"),
+                    "price_change_1w": tech.get("price_change_1w"),
+                    "price_change_1m": tech.get("price_change_1m"),
+                    "price_change_3m": tech.get("price_change_3m"),
+                }
+            quantitative.append(entry)
+        return quantitative

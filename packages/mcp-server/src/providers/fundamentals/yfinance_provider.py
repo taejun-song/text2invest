@@ -2,7 +2,7 @@ import asyncio
 import logging
 from datetime import datetime, date
 import yfinance as yf
-from models.fundamentals import DataSourceType, FundamentalData, FundamentalMetrics, HistoricalTrend, HistoricalMetric
+from models.fundamentals import DataSourceType, FundamentalData, FundamentalMetrics, HistoricalTrend, HistoricalMetric, TechnicalIndicators
 from providers.fundamentals.base import FundamentalsProvider
 from providers.fundamentals.formatters import format_large_number, format_currency
 
@@ -104,3 +104,84 @@ class YFinanceProvider(FundamentalsProvider):
         except Exception as e:
             logger.warning(f"YFinance historical failed for {ticker}: {e}")
             return []
+
+    async def get_technical_indicators(self, ticker: str) -> TechnicalIndicators | None:
+        try:
+            stock = yf.Ticker(ticker)
+            hist = stock.history(period="1y")
+            if hist.empty:
+                return None
+            current_price = float(hist["Close"].iloc[-1])
+            ma_50 = self._calculate_moving_average(hist, 50)
+            ma_200 = self._calculate_moving_average(hist, 200)
+            rsi_14 = self._calculate_rsi(hist, 14)
+            price_change_1w = self._calculate_price_change(hist, 5)
+            price_change_1m = self._calculate_price_change(hist, 21)
+            price_change_3m = self._calculate_price_change(hist, 63)
+            price_change_ytd = self._calculate_ytd_change(hist)
+            volume_avg = int(hist["Volume"].tail(10).mean()) if len(hist) >= 10 else None
+            return TechnicalIndicators(
+                ticker=ticker.upper(),
+                current_price=current_price,
+                ma_50=ma_50,
+                ma_200=ma_200,
+                rsi_14=rsi_14,
+                price_change_1w=price_change_1w,
+                price_change_1m=price_change_1m,
+                price_change_3m=price_change_3m,
+                price_change_ytd=price_change_ytd,
+                volume_avg_10d=volume_avg,
+                retrieved_at=datetime.now(),
+            )
+        except Exception as e:
+            logger.warning(f"YFinance technical failed for {ticker}: {e}")
+            return None
+
+    def _calculate_moving_average(self, hist, period: int) -> float | None:
+        if len(hist) < period:
+            return None
+        return float(hist["Close"].tail(period).mean())
+
+    def _calculate_rsi(self, hist, period: int = 14) -> float | None:
+        if len(hist) < period + 1:
+            return None
+        delta = hist["Close"].diff()
+        gain = delta.where(delta > 0, 0.0)
+        loss = (-delta).where(delta < 0, 0.0)
+        avg_gain = gain.ewm(span=period, adjust=False).mean().iloc[-1]
+        avg_loss = loss.ewm(span=period, adjust=False).mean().iloc[-1]
+        if avg_loss == 0:
+            return 100.0
+        rs = avg_gain / avg_loss
+        return float(100 - (100 / (1 + rs)))
+
+    def _calculate_price_change(self, hist, days: int) -> float | None:
+        if len(hist) < days + 1:
+            return None
+        current = hist["Close"].iloc[-1]
+        past = hist["Close"].iloc[-days - 1]
+        return float((current - past) / past)
+
+    def _calculate_ytd_change(self, hist) -> float | None:
+        current_year = datetime.now().year
+        ytd_data = hist[hist.index.year == current_year]
+        if len(ytd_data) < 2:
+            return None
+        first_price = ytd_data["Close"].iloc[0]
+        current_price = ytd_data["Close"].iloc[-1]
+        return float((current_price - first_price) / first_price)
+
+    async def get_sector_info(self, ticker: str) -> dict | None:
+        try:
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            if not info:
+                return None
+            return {
+                "sector": info.get("sector", ""),
+                "industry": info.get("industry", ""),
+                "sector_pe": info.get("sectorPe"),
+            }
+        except Exception as e:
+            logger.warning(f"YFinance sector info failed for {ticker}: {e}")
+            return None
